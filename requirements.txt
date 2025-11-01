@@ -1,0 +1,7 @@
+boto3
+pandas
+pyyaml
+requests
+tqdm
+termcolor
+hawk_scanner

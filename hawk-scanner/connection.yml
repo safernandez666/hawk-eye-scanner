@@ -1,0 +1,83 @@
+# connection.yml
+# Configuración de conexiones para Hawk-eye Scanner
+# Este archivo define las fuentes de datos a escanear
+
+notify:
+  redacted: true  # Redactar datos sensibles en las notificaciones
+  suppress_duplicates: true  # Suprimir alertas duplicadas
+  
+  # Opcional: Configurar webhook de Slack para notificaciones
+  # slack:
+  #   webhook_url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+  #   mention: "<@USERID>"  # Opcional: mencionar usuario/bot en alertas
+
+sources:
+  # ==========================================
+  # CONFIGURACIÓN MYSQL
+  # ==========================================
+  mysql:
+    poc_mysql:
+      host: hawk-mysql
+      port: 3306
+      user: root
+      password: rootpassword
+      database: pocdb
+      limit_start: 0
+      limit_end: 10000
+      # Opcional: especificar tablas específicas
+      # tables:
+      #   - payments
+      #   - users
+      # Opcional: excluir columnas
+      # exclude_columns:
+      #   - id
+      #   - created_at
+
+  # ==========================================
+  # CONFIGURACIÓN S3 (LOCALSTACK)
+  # ==========================================
+  s3:
+    poc_s3:
+      access_key: test
+      secret_key: test
+      bucket_name: poc-bucket
+      endpoint_url: http://localstack:4566  # LocalStack endpoint
+      cache: false
+      # Opcional: patrones a excluir
+      # exclude_patterns:
+      #   - .log
+      #   - .tmp
+
+  # ==========================================
+  # CONFIGURACIÓN FILESYSTEM (Opcional)
+  # ==========================================
+  # fs:
+  #   local_scan:
+  #     path: /app/test-data
+  #     exclude_patterns:
+  #       - .git
+  #       - node_modules
+  #       - venv
+  #       - __pycache__
+
+  # ==========================================
+  # CONFIGURACIÓN REDIS (Opcional)
+  # ==========================================
+  # redis:
+  #   poc_redis:
+  #     host: redis
+  #     port: 6379
+  #     password: your_redis_password
+
+  # ==========================================
+  # CONFIGURACIÓN POSTGRESQL (Opcional)
+  # ==========================================
+  # postgresql:
+  #   poc_postgres:
+  #     host: postgres
+  #     port: 5432
+  #     user: postgres
+  #     password: postgres
+  #     database: testdb
+  #     limit_start: 0
+  #     limit_end: 1000

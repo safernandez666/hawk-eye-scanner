@@ -1,0 +1,63 @@
+version: "3.8"
+
+services:
+  # LocalStack - Simula AWS S3
+  localstack:
+    image: localstack/localstack:2.2
+    container_name: localstack
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+      - DEBUG=1
+    ports:
+      - "4566:4566"
+    volumes:
+      - "./localstack_data:/tmp/localstack"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hawk-network
+
+  # MySQL - Base de datos
+  hawk-mysql:
+    image: mysql:8.0
+    container_name: hawk-mysql 
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: pocdb
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./data:/docker-entrypoint-initdb.d
+    networks:
+      - hawk-network
+
+  hawk-scanner:
+      build: .
+      container_name: hawk-scanner
+      platform: linux/amd64
+      depends_on:
+        - hawk-mysql
+        - localstack
+      environment:
+        - AWS_ACCESS_KEY_ID=test
+        - AWS_SECRET_ACCESS_KEY=test
+        - AWS_ENDPOINT_URL=http://localstack:4566
+        - AWS_DEFAULT_REGION=us-east-1
+      volumes:
+        - ./alerts:/app/alerts
+        - ./hawk-scanner/connection.yml:/app/connection.yml           # ✅ Monta en /app
+        - ./hawk-scanner/fingerprint.yml:/app/fingerprint.yml         # ✅ Monta en /app
+      command: tail -f /dev/null
+      networks:
+        - hawk-network
+
+networks:
+  hawk-network:
+    driver: bridge
+
+volumes:
+  mysql_data:

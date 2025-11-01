@@ -1,0 +1,18 @@
+"Credit Card - Visa": '\b4[0-9]{12}(?:[0-9]{3})?\b'
+"Credit Card - Mastercard": '\b5[1-5][0-9]{14}\b'
+"Credit Card - American Express": '\b3[47][0-9]{13}\b'
+"Credit Card - Discover": '\b6(?:011|5[0-9]{2})[0-9]{12}\b'
+"Social Security Number (SSN)": '\b\d{3}-\d{2}-\d{4}\b'
+"Email Address": '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+"Phone Number - US": '\b(?:\+?1[-.]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+"Phone Number - International": '\b\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b'
+"AWS Access Key": '\b(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}\b'
+"AWS Secret Key": '\b[A-Za-z0-9/+=]{40}\b'
+"Private Key": '-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----'
+"Generic Password": "(?i)(password|pwd|passwd)\\s*[=:]\\s*\\S{4,}"
+"API Key": "(?i)(api[_-]?key|apikey)\\s*[=:]\\s*[A-Za-z0-9_\\-]{20,}"
+"JWT Token": '\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b'
+"IP Address - Private": '\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'
+"IBAN": '\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b'
+"Bitcoin Address": '\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b'
+"URL with Credentials": '(?i)https?://[^:]+:[^@]+@[^\s]+'

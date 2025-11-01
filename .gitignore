@@ -1,0 +1,52 @@
+# Datos sensibles y resultados
+alerts/
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+# LocalStack data
+localstack_data/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv
+*.egg-info/
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+
+# Secrets y configs locales
+.env
+*.pem
+*.key
+*_rsa
+*_dsa
+
+# Backups
+*.backup
+*.bak
+*.old
+
+# Temporal
+*.tmp
+.pytest_cache/
+.coverage
+htmlcov/
