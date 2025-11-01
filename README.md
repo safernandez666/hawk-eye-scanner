@@ -181,7 +181,7 @@ MIT License - ver [LICENSE](LICENSE) para más detalles
 
 ## 🙏 Agradecimientos
 
-- [Hawk-Scanner](https://github.com/hawk-scanner) - Motor de escaneo
+- [Hawk-Scanner](https://github.com/rohitcoder/hawk-eye) - Motor de escaneo
 - [LocalStack](https://github.com/localstack/localstack) - Emulación de AWS
 
 ---
