@@ -39,7 +39,7 @@ Sistema automatizado de detección de datos sensibles (PII/PCI) en bases de dato
 ### Setup rápido
 ```bash
 # 1. Clonar repositorio
-git clone https://github.com/TU_USUARIO/hawk-eye-scanner.git
+git clone https://github.com/safernandez666/hawk-eye-scanner.git
 cd hawk-eye-scanner
 
 # 2. Levantar servicios
@@ -175,10 +175,9 @@ MIT License - ver [LICENSE](LICENSE) para más detalles
 
 ## 👤 Autor
 
-**Tu Nombre**
-- GitHub: [@tu-usuario](https://github.com/tu-usuario)
-- LinkedIn: [Tu Perfil](https://linkedin.com/in/tu-perfil)
-- Blog: [tu-blog.com](https://tu-blog.com)
+**Santiago Fernandez**
+- LinkedIn: [Tu Perfil](https://linkedin.com/in/safernandez666)
+- Blog: [tu-blog.com](https://blog.santiagoagustinfernandez.com)
 
 ## 🙏 Agradecimientos
 
