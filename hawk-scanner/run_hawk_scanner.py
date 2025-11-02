@@ -7,7 +7,7 @@ from datetime import datetime
 from collections import Counter
 from severity_classifier import reclassify_findings, get_critical_findings
 from alert_manager import AlertManager
-
+from thehive_integration import TheHiveIntegration
 # Directorios
 ALERTS_DIR = "/app/alerts"
 RESULTS_DIR = "/app/alerts"
@@ -237,7 +237,27 @@ if __name__ == "__main__":
         stats = alert_mgr.get_stats()
         if stats['critical_pending'] > 0:
             print(f"\n   ⚠️  {stats['critical_pending']} alertas CRÍTICAS pendientes")
+                    # TheHive Integration
+            thehive = TheHiveIntegration()
             
+            if thehive.test_connection():
+                print(f"\n{'='*70}")
+                print("🎯 Enviando alertas críticas a TheHive...")
+                print(f"{'='*70}")
+                
+                cases_created = 0
+                for alert in new_alerts:
+                    finding = alert['finding']
+                    # Solo CRITICAL y HIGH
+                    if finding.get('severity') in ['CRITICAL', 'HIGH']:
+                        case_id = thehive.create_case(finding, alert['alert_hash'])
+                        if case_id:
+                            cases_created += 1
+                
+                print(f"\n📋 Casos creados en TheHive: {cases_created}")
+                print(f"🌐 Accede al dashboard: http://localhost:9000")
+            else:
+                print("\n⚠️  TheHive no está disponible (casos no enviados)")
         # Mostrar hallazgos en consola
         display_findings(results)
         
