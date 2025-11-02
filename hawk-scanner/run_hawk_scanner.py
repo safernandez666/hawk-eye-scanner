@@ -6,6 +6,7 @@ import sys
 from datetime import datetime
 from collections import Counter
 from severity_classifier import reclassify_findings, get_critical_findings
+from alert_manager import AlertManager
 
 # Directorios
 ALERTS_DIR = "/app/alerts"
@@ -210,7 +211,33 @@ if __name__ == "__main__":
     if mysql_success or s3_success:
         # Consolidar resultados
         results = consolidate_results(mysql_output, s3_output, consolidated_output)
+
+        # ✅ SISTEMA DE TRACKING
+        print(f"\n{'='*70}")
+        print("🔄 Procesando con sistema de tracking...")
+        print(f"{'='*70}")
         
+        alert_mgr = AlertManager()
+        
+        new_alerts = []
+        duplicate_count = 0
+        
+        for finding in results:
+            processed = alert_mgr.process_finding(finding)
+            if processed['is_new']:
+                new_alerts.append(processed)
+            else:
+                duplicate_count += 1
+        
+        print(f"\n📊 Resultados del tracking:")
+        print(f"   • Total de hallazgos: {len(results)}")
+        print(f"   • Alertas NUEVAS: {len(new_alerts)}")
+        print(f"   • Ya vistos: {duplicate_count}")
+        
+        stats = alert_mgr.get_stats()
+        if stats['critical_pending'] > 0:
+            print(f"\n   ⚠️  {stats['critical_pending']} alertas CRÍTICAS pendientes")
+            
         # Mostrar hallazgos en consola
         display_findings(results)
         

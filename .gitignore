@@ -1,6 +1,5 @@
 # Datos sensibles y resultados
 alerts/
-data/
 *.db
 *.sqlite
 *.sqlite3
