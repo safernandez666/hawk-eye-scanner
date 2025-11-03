@@ -4,6 +4,16 @@ alerts/
 *.sqlite
 *.sqlite3
 
+data/
+*.db
+*.sqlite
+*.sqlite3
+
+hawk-scanner/data/
+*.db
+*.sqlite
+*.sqlite3
+
 # LocalStack data
 localstack_data/
 
