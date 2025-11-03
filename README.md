@@ -22,7 +22,6 @@
 - [Sistema de Tracking](#-sistema-de-tracking)
 - [Integración con TheHive](#-integración-con-thehive)
 - [Configuración Avanzada](#%EF%B8%8F-configuración-avanzada)
-- [Roadmap](#-roadmap)
 - [Contribuir](#-contribuir)
 - [Licencia](#-licencia)
 - [Autor](#-autor)
@@ -481,52 +480,6 @@ services:
 
 ---
 
-## 🛣️ Roadmap
-
-### Versión Actual (v1.0)
-
-- [x] Detección de 17+ patrones PII/PCI
-- [x] Clasificación de severidad en 4 niveles
-- [x] Sistema de tracking con SQLite
-- [x] Deduplicación basada en hash
-- [x] Integración con TheHive
-- [x] Soporte para MySQL y S3
-
-### Próximas Versiones
-
-#### v1.1 - Mejoras de Usabilidad
-- [ ] CLI interactivo con `rich`
-- [ ] Dashboard web con métricas en tiempo real
-- [ ] Notificaciones vía Slack/Email/Teams
-- [ ] Sistema de whitelisting para falsos positivos
-
-#### v1.2 - Más Fuentes
-- [ ] PostgreSQL
-- [ ] MongoDB
-- [ ] Azure Blob Storage
-- [ ] Google Cloud Storage
-
-#### v1.3 - Análisis Avanzado
-- [ ] Validación de tarjetas con algoritmo de Luhn
-- [ ] Detección de patrones customizados con ML
-- [ ] Análisis de contexto (detectar credenciales hardcodeadas)
-- [ ] Scoring de riesgo por contexto
-
-#### v1.4 - Integraciones
-- [ ] Cortex Analyzer para enrichment automático
-- [ ] MISP para IOC sharing
-- [ ] Splunk/ELK para logs
-- [ ] Jira para ticketing
-
-#### v2.0 - Enterprise Features
-- [ ] Multi-tenancy
-- [ ] RBAC (Role-Based Access Control)
-- [ ] Auditoría completa
-- [ ] Reportes ejecutivos (PDF/Excel)
-- [ ] Scheduler con cron jobs
-- [ ] API REST para integraciones
-
----
 
 ## 🤝 Contribuir
 
@@ -633,28 +586,3 @@ FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
 **🦅 Hawk-Eye Scanner - Automatizando la seguridad de datos sensibles**
 
 </div>
-EOF
-
-# Crear archivo de licencia
-cat > LICENSE << 'EOF'
-MIT License
-
-Copyright (c) 2025 Santiago Fernández
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
