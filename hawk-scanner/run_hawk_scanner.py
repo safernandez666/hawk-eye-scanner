@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 import subprocess
 import json
 import os
@@ -8,18 +9,15 @@ from collections import Counter
 from severity_classifier import reclassify_findings, get_critical_findings
 from alert_manager import AlertManager
 from thehive_integration import TheHiveIntegration
+
 # Directorios
 ALERTS_DIR = "/app/alerts"
 RESULTS_DIR = "/app/alerts"
 
-# Crear directorio si no existe
 os.makedirs(ALERTS_DIR, exist_ok=True)
-
-# Timestamp para los archivos
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
 def run_scan(source_type, output_file):
-    """Ejecuta un escaneo y guarda resultados"""
     print(f"🔍 Escaneando {source_type}...")
     cmd = [
         "hawk_scanner",
@@ -43,14 +41,11 @@ def run_scan(source_type, output_file):
         return False
 
 def consolidate_results(mysql_file, s3_file, output_file):
-    """Consolida los resultados en un solo archivo"""
     all_results = []
     
-    # Cargar MySQL
     if os.path.exists(mysql_file):
         with open(mysql_file, 'r') as f:
             mysql_data = json.load(f)
-            # Manejar estructura de diccionario
             if isinstance(mysql_data, dict):
                 for key, findings in mysql_data.items():
                     if isinstance(findings, list):
@@ -58,11 +53,9 @@ def consolidate_results(mysql_file, s3_file, output_file):
             elif isinstance(mysql_data, list):
                 all_results.extend(mysql_data)
     
-    # Cargar S3
     if os.path.exists(s3_file):
         with open(s3_file, 'r') as f:
             s3_data = json.load(f)
-            # Manejar estructura de diccionario
             if isinstance(s3_data, dict):
                 for key, findings in s3_data.items():
                     if isinstance(findings, list):
@@ -70,10 +63,8 @@ def consolidate_results(mysql_file, s3_file, output_file):
             elif isinstance(s3_data, list):
                 all_results.extend(s3_data)
     
-    # ✅ RECLASIFICAR SEVERIDAD BASADA EN TIPO DE DATO
     all_results = reclassify_findings(all_results)
     
-    # Guardar consolidado
     with open(output_file, 'w') as f:
         json.dump(all_results, f, indent=2)
     
@@ -81,7 +72,6 @@ def consolidate_results(mysql_file, s3_file, output_file):
     return all_results
 
 def display_findings(results):
-    """Muestra los hallazgos en consola de forma legible"""
     if not results:
         print("\n✅ No se detectaron hallazgos de seguridad")
         return
@@ -90,7 +80,6 @@ def display_findings(results):
     print(f"🔍 HALLAZGOS DETECTADOS")
     print(f"{'='*70}")
     
-    # Agrupar por severidad
     by_severity = {}
     for r in results:
         severity = r.get('severity', 'Unknown')
@@ -98,7 +87,6 @@ def display_findings(results):
             by_severity[severity] = []
         by_severity[severity].append(r)
     
-    # Orden de severidad (nuevo orden con CRITICAL)
     severity_order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'Unknown']
     severity_icons = {
         'CRITICAL': '🔴',
@@ -118,14 +106,12 @@ def display_findings(results):
         print(f"\n{icon} {severity} - {len(findings)} hallazgos")
         print("-" * 70)
         
-        # Mostrar todos los CRITICAL, máximo 5 del resto
         max_display = len(findings) if severity == 'CRITICAL' else min(5, len(findings))
         
         for i, finding in enumerate(findings[:max_display], 1):
             print(f"\n  [{i}] {finding.get('pattern_name', 'Unknown Pattern')}")
             print(f"      Fuente: {finding.get('data_source', 'unknown')}")
             
-            # Información específica según la fuente
             if finding.get('data_source') == 'mysql':
                 print(f"      Base de datos: {finding.get('database', 'N/A')}")
                 print(f"      Tabla: {finding.get('table', 'N/A')}")
@@ -134,7 +120,6 @@ def display_findings(results):
                 print(f"      Bucket: {finding.get('bucket', 'N/A')}")
                 print(f"      Archivo: {finding.get('file_path', 'N/A')}")
             
-            # Mostrar matches (limitado)
             matches = finding.get('matches', [])
             if matches:
                 match_preview = matches[:3]
@@ -146,7 +131,6 @@ def display_findings(results):
             print(f"\n  ... y {len(findings) - max_display} hallazgos más de severidad {severity}")
 
 def generate_summary(results, output_file):
-    """Genera un resumen consolidado de todos los hallazgos"""
     valid_results = [r for r in results if isinstance(r, dict) and 'pattern_name' in r]
     
     summary = {
@@ -167,7 +151,6 @@ def generate_summary(results, output_file):
     print(f"   📊 Total de hallazgos: {summary['total_findings']}")
     
     print(f"\n   🚨 Por severidad:")
-    # Orden específico para mostrar
     severity_display_order = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
     for severity in severity_display_order:
         count = summary['by_severity'].get(severity, 0)
@@ -184,7 +167,6 @@ def generate_summary(results, output_file):
     for pattern, count in top_patterns:
         print(f"      {pattern}: {count}")
     
-    # ⚠️ ALERTAS CRÍTICAS
     critical = get_critical_findings(valid_results)
     if critical:
         print(f"\n   ⚠️  ATENCIÓN: {len(critical)} hallazgos CRÍTICOS detectados")
@@ -197,22 +179,19 @@ if __name__ == "__main__":
     print("🦅 HAWK-EYE SCANNER - Automated Security Scan")
     print("=" * 70)
     
-    # Archivos de salida
     mysql_output = f"{RESULTS_DIR}/mysql_{timestamp}.json"
     s3_output = f"{RESULTS_DIR}/s3_{timestamp}.json"
     consolidated_output = f"{RESULTS_DIR}/consolidated_{timestamp}.json"
     summary_output = f"{RESULTS_DIR}/summary_{timestamp}.json"
     latest_output = f"{RESULTS_DIR}/latest.json"
     
-    # Ejecutar escaneos
     mysql_success = run_scan("mysql", mysql_output)
     s3_success = run_scan("s3", s3_output)
     
     if mysql_success or s3_success:
-        # Consolidar resultados
         results = consolidate_results(mysql_output, s3_output, consolidated_output)
 
-        # ✅ SISTEMA DE TRACKING
+        # SISTEMA DE TRACKING
         print(f"\n{'='*70}")
         print("🔄 Procesando con sistema de tracking...")
         print(f"{'='*70}")
@@ -237,34 +216,31 @@ if __name__ == "__main__":
         stats = alert_mgr.get_stats()
         if stats['critical_pending'] > 0:
             print(f"\n   ⚠️  {stats['critical_pending']} alertas CRÍTICAS pendientes")
-                    # TheHive Integration
-            thehive = TheHiveIntegration()
-            
-            if thehive.test_connection():
-                print(f"\n{'='*70}")
-                print("🎯 Enviando alertas críticas a TheHive...")
-                print(f"{'='*70}")
-                
-                cases_created = 0
-                for alert in new_alerts:
-                    finding = alert['finding']
-                    # Solo CRITICAL y HIGH
-                    if finding.get('severity') in ['CRITICAL', 'HIGH']:
-                        case_id = thehive.create_case(finding, alert['alert_hash'])
-                        if case_id:
-                            cases_created += 1
-                
-                print(f"\n📋 Casos creados en TheHive: {cases_created}")
-                print(f"🌐 Accede al dashboard: http://localhost:9000")
-            else:
-                print("\n⚠️  TheHive no está disponible (casos no enviados)")
-        # Mostrar hallazgos en consola
-        display_findings(results)
         
-        # Generar resumen
+        # INTEGRACIÓN CON THEHIVE
+        thehive = TheHiveIntegration()
+        
+        if thehive.test_connection():
+            print(f"\n{'='*70}")
+            print("🎯 Enviando alertas críticas a TheHive...")
+            print(f"{'='*70}")
+            
+            cases_created = 0
+            for alert in new_alerts:
+                finding = alert['finding']
+                if finding.get('severity') in ['CRITICAL', 'HIGH']:
+                    case_id = thehive.create_case(finding, alert['alert_hash'])
+                    if case_id:
+                        cases_created += 1
+            
+            print(f"\n📋 Casos creados en TheHive: {cases_created}")
+            print(f"🌐 Accede al dashboard: http://localhost:9000")
+        else:
+            print("\n⚠️  TheHive no está disponible (casos no enviados)")
+
+        display_findings(results)
         generate_summary(results, summary_output)
         
-        # Copiar como "latest" para fácil acceso
         with open(latest_output, 'w') as f:
             json.dump(results, f, indent=2)
         

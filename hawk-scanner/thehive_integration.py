@@ -9,7 +9,7 @@ from typing import Dict, List
 class TheHiveIntegration:
     def __init__(self, url="http://thehive:9000", api_key=None):
         self.url = url.rstrip('/')
-        self.api_key = api_key or "cZHJcC9R6T1jFIyuLnWV+4+QbMeO4miB"  # ← CAMBIAR ESTO
+        self.api_key = api_key or "J6ZvFWfmvrIfcyaCUgYlgHo7vg9mIOE+"  # ← CAMBIAR ESTO
         self.headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'
@@ -52,17 +52,6 @@ class TheHiveIntegration:
             'pap': severity_info['pap'],
             'tags': tags,
             'flag': finding.get('severity') == 'CRITICAL',  # Flag si es crítico
-            'customFields': {
-                'hawk-hash': {
-                    'string': alert_hash
-                },
-                'data-source': {
-                    'string': finding['data_source']
-                },
-                'pattern-type': {
-                    'string': finding['pattern_name']
-                }
-            }
         }
         
         try:
