@@ -1,8 +1,8 @@
 # Dashboard DSPM - Tabler via CDN
 FROM nginx:alpine
 
-# Instalar Python y dependencias
-RUN apk add --no-cache python3 py3-pip
+# Instalar Python, dependencias y docker-cli para scan trigger
+RUN apk add --no-cache python3 py3-pip docker-cli
 
 # Crear entorno virtual
 RUN python3 -m venv /opt/venv

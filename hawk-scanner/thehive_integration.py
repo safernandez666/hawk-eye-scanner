@@ -9,7 +9,7 @@ from typing import Dict, List
 class TheHiveIntegration:
     def __init__(self, url="http://thehive:9000", api_key=None):
         self.url = url.rstrip('/')
-        self.api_key = api_key or "CyuxSJNYbepfFdA6WWWYjxwkqJVdapAw"
+        self.api_key = api_key or "cyj8nR1aydTRN3ONoeJhIjRbYI9YYLix"
         self.headers = {
             'Authorization': f'Bearer {self.api_key}',
             'Content-Type': 'application/json'

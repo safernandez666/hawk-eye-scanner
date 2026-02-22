@@ -14,7 +14,7 @@
             .navbar-vertical ~ .page-wrapper { margin-left: 200px; }
             .navbar-vertical .nav-link-title { font-size: .8125rem; }
             .navbar-vertical .nav-link-icon { width: 1.25rem; height: 1.25rem; }
-            .navbar-vertical .navbar-brand { font-size: .875rem; }
+            .navbar-vertical .navbar-brand { font-size: 1.25rem; }
         }
         .table-sm-custom td, .table-sm-custom th { padding: .4rem .5rem; font-size: .8125rem; }
     </style>
@@ -27,16 +27,16 @@
                     <span class="navbar-toggler-icon"></span>
                 </button>
                 <h1 class="navbar-brand navbar-brand-autodark">
-                    <a href="/"><i class="ti ti-moustache me-1"></i>Poirot</a>
+                    <a href="/"><i class="ti ti-moustache me-2" style="font-size:1.5rem;"></i>Poirot</a>
                 </h1>
                 <div class="collapse navbar-collapse" id="sidebar-menu">
                     <ul class="navbar-nav pt-lg-3">
                         <li class="nav-item"><a class="nav-link" href="/"><span class="nav-link-icon"><i class="ti ti-dashboard"></i></span><span class="nav-link-title">Dashboard</span></a></li>
-                        <li class="nav-item"><a class="nav-link active" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span></a></li>
+                        <li class="nav-item"><a class="nav-link active" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span><span class="badge bg-red badge-sm ms-auto" id="sidebar-critical-count" style="display:none;">0</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/patterns.html"><span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span><span class="nav-link-title">Patrones</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/timeline.html"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Timeline</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/sources.html"><span class="nav-link-icon"><i class="ti ti-database"></i></span><span class="nav-link-title">Fuentes</span></a></li>
-                        <li class="nav-item"><a class="nav-link" href="http://localhost:9000" target="_blank"><span class="nav-link-icon"><i class="ti ti-bug"></i></span><span class="nav-link-title">TheHive</span><i class="ti ti-external-link ms-auto" style="font-size:.7rem;opacity:.5;"></i></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/cases.html"><span class="nav-link-icon"><i class="ti ti-briefcase"></i></span><span class="nav-link-title">Casos</span><span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span></a></li>
                     </ul>
                 </div>
             </div>
@@ -114,8 +114,17 @@
                     <div class="card">
                         <div class="card-header" style="padding:.5rem 1rem;">
                             <h3 class="card-title" style="font-size:.8125rem;">Lista de Alertas</h3>
-                            <div class="card-actions">
+                            <div class="card-actions d-flex gap-2">
                                 <span class="badge bg-secondary" id="total-alerts" style="font-size:.7rem;">0 alertas</span>
+                                <div class="dropdown">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" style="font-size:.7rem; padding:.2rem .5rem;" data-bs-toggle="dropdown">
+                                        <i class="ti ti-download me-1"></i>Exportar
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-end">
+                                        <a class="dropdown-item" href="#" onclick="exportAlerts('csv')"><i class="ti ti-file-text me-2"></i>Exportar CSV</a>
+                                        <a class="dropdown-item" href="#" onclick="exportAlerts('json')"><i class="ti ti-code me-2"></i>Exportar JSON</a>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                         <div class="table-responsive">
@@ -153,7 +162,7 @@
                         <div class="modal-footer py-2">
                             <button type="button" class="btn btn-sm me-auto" data-bs-dismiss="modal">Cerrar</button>
                             <a id="thehive-link" href="#" target="_blank" class="btn btn-primary btn-sm" style="display:none;">
-                                <i class="ti ti-bug me-1"></i>Ver en TheHive
+                                <i class="ti ti-briefcase me-1"></i>Ver en TheHive
                             </a>
                         </div>
                     </div>
@@ -185,15 +194,19 @@
             document.getElementById('theme-icon').className = theme === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
         }
 
-        async function loadAlerts() {
+        function getFilterParams() {
             const severity = document.getElementById('filter-severity').value;
             const status = document.getElementById('filter-status').value;
             const source = document.getElementById('filter-source').value;
+            let params = '';
+            if (severity) params += `&severity=${severity}`;
+            if (status) params += `&status=${status}`;
+            if (source) params += `&source=${source}`;
+            return params;
+        }
 
-            let url = `${API_URL}/alerts?limit=100`;
-            if (severity) url += `&severity=${severity}`;
-            if (status) url += `&status=${status}`;
-            if (source) url += `&source=${source}`;
+        async function loadAlerts() {
+            let url = `${API_URL}/alerts?limit=100${getFilterParams()}`;
 
             try {
                 const res = await fetch(url);
@@ -252,9 +265,14 @@
                 ${a.notes ? `<hr class="my-2"><label class="form-label text-muted mb-0" style="font-size:.7rem;">Notas</label><div>${a.notes}</div>` : ''}
             `;
             const link = document.getElementById('thehive-link');
-            if (a.thehive_case_id) { link.href = `http://localhost:9000/cases/${a.thehive_case_id}/details`; link.style.display = 'inline-block'; }
+            if (a.thehive_case_id) { link.href = `/cases.html`; link.style.display = 'inline-block'; }
             else { link.style.display = 'none'; }
             new bootstrap.Modal(document.getElementById('alertModal')).show();
+        }
+
+        function exportAlerts(format) {
+            let url = `${API_URL}/alerts/export?format=${format}${getFilterParams()}`;
+            window.location.href = url;
         }
 
         function applyFilters() { loadAlerts(); }
@@ -264,7 +282,24 @@
         function getSourceIcon(s) { return { 'mysql':'database','s3':'cloud' }[s] || 'help'; }
         function formatDate(d) { if (!d) return '-'; return new Date(d).toLocaleString('es-ES'); }
 
-        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadAlerts(); });
+        async function loadSidebarBadges() {
+            try {
+                const res = await fetch(`${API_URL}/stats`);
+                const stats = await res.json();
+                const cp = stats.critical_pending || 0;
+                const el = document.getElementById('sidebar-critical-count');
+                if (cp > 0) { el.textContent = cp; el.style.display = 'inline-block'; }
+            } catch (e) {}
+            try {
+                const res = await fetch(`${API_URL}/thehive/cases`);
+                const data = await res.json();
+                const open = (data.cases || []).filter(c => c.status !== 'Resolved' && c.status !== 'Closed').length;
+                const el = document.getElementById('sidebar-cases-count');
+                if (open > 0) { el.textContent = open; el.style.display = 'inline-block'; }
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadAlerts(); loadSidebarBadges(); });
     </script>
 </body>
 </html>

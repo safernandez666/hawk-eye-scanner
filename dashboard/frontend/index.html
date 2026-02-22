@@ -16,7 +16,7 @@
             .navbar-vertical ~ .page-wrapper { margin-left: 200px; }
             .navbar-vertical .nav-link-title { font-size: .8125rem; }
             .navbar-vertical .nav-link-icon { width: 1.25rem; height: 1.25rem; }
-            .navbar-vertical .navbar-brand { font-size: .875rem; }
+            .navbar-vertical .navbar-brand { font-size: 1.25rem; }
         }
         /* Compact cards */
         .stat-card .card-body { padding: .75rem 1rem; }
@@ -41,7 +41,7 @@
                 </button>
                 <h1 class="navbar-brand navbar-brand-autodark">
                     <a href="/">
-                        <i class="ti ti-moustache me-1"></i>Poirot
+                        <i class="ti ti-moustache me-2" style="font-size:1.5rem;"></i>Poirot
                     </a>
                 </h1>
                 <div class="collapse navbar-collapse" id="sidebar-menu">
@@ -78,10 +78,10 @@
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="http://localhost:9000" target="_blank">
-                                <span class="nav-link-icon"><i class="ti ti-bug"></i></span>
-                                <span class="nav-link-title">TheHive</span>
-                                <i class="ti ti-external-link ms-auto" style="font-size:.7rem; opacity:.5;"></i>
+                            <a class="nav-link" href="/cases.html">
+                                <span class="nav-link-icon"><i class="ti ti-briefcase"></i></span>
+                                <span class="nav-link-title">Casos</span>
+                                <span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span>
                             </a>
                         </li>
                     </ul>
@@ -131,8 +131,17 @@
             <!-- Page Header -->
             <div class="page-header d-print-none" style="padding: .5rem 0;">
                 <div class="container-xl">
-                    <div class="page-pretitle" style="font-size:.625rem;">Poirot DSPM</div>
-                    <h2 class="page-title" style="font-size:1.125rem;">Dashboard</h2>
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <div class="page-pretitle" style="font-size:.625rem;">Poirot DSPM</div>
+                            <h2 class="page-title" style="font-size:1.125rem;">Dashboard</h2>
+                        </div>
+                        <div class="ms-auto">
+                            <button class="btn btn-primary btn-sm" id="scan-btn" onclick="runScan()" style="font-size:.7rem; padding:.2rem .5rem;">
+                                <i class="ti ti-radar-2 me-1" id="scan-icon"></i><span id="scan-text">Escanear Ahora</span>
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -196,7 +205,7 @@
                                         <div class="subheader">Casos TheHive</div>
                                         <div class="ms-auto">
                                             <span class="bg-azure text-white rounded d-inline-flex align-items-center justify-content-center stat-icon">
-                                                <i class="ti ti-bug"></i>
+                                                <i class="ti ti-briefcase"></i>
                                             </span>
                                         </div>
                                     </div>
@@ -270,9 +279,8 @@
                             <div class="d-flex flex-wrap gap-4 align-items-center">
                                 <span class="text-muted" style="font-size:.75rem; font-weight:600;">ESTADO:</span>
                                 <span class="status-item"><i class="ti ti-database text-green"></i> SQLite <span class="badge bg-green badge-sm">OK</span></span>
-                                <span class="status-item"><i class="ti ti-server text-green"></i> MySQL <span class="badge bg-green badge-sm">Conectado</span></span>
-                                <span class="status-item"><i class="ti ti-cloud text-green"></i> S3 <span class="badge bg-green badge-sm">Conectado</span></span>
-                                <span class="status-item"><i class="ti ti-bug text-green"></i> TheHive <span class="badge bg-green badge-sm">Integrado</span></span>
+                                <span class="status-item" id="status-scanner"><i class="ti ti-radar-2 text-muted"></i> Scanner <span class="badge bg-secondary badge-sm">...</span></span>
+                                <span class="status-item" id="status-thehive"><i class="ti ti-briefcase text-muted"></i> TheHive <span class="badge bg-secondary badge-sm">...</span></span>
                             </div>
                         </div>
                     </div>
@@ -301,6 +309,7 @@
 
     <script>
         const API_URL = '/api';
+        let scanRunning = false;
 
         const severityColors = {
             'CRITICAL': '#d63939',
@@ -328,6 +337,97 @@
 
         function updateThemeIcon(theme) {
             document.getElementById('theme-icon').className = theme === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+        }
+
+        // ==========================================
+        // SCANNER TRIGGER
+        // ==========================================
+        async function runScan() {
+            if (scanRunning) return;
+            scanRunning = true;
+            const btn = document.getElementById('scan-btn');
+            const icon = document.getElementById('scan-icon');
+            const text = document.getElementById('scan-text');
+            btn.disabled = true;
+            icon.className = 'ti ti-loader animate-spin me-1';
+
+            let seconds = 0;
+            const stages = ['Conectando al scanner...', 'Analizando MySQL...', 'Analizando S3...', 'Procesando resultados...'];
+            text.textContent = stages[0];
+            const timer = setInterval(() => {
+                seconds++;
+                const stage = stages[Math.min(Math.floor(seconds / 5), stages.length - 1)];
+                text.textContent = `${stage} (${seconds}s)`;
+            }, 1000);
+
+            try {
+                const res = await fetch(`${API_URL}/scanner/run`, { method: 'POST' });
+                const data = await res.json();
+                clearInterval(timer);
+                if (data.status === 'completed') {
+                    text.textContent = `Completado en ${seconds}s`;
+                    icon.className = 'ti ti-check me-1';
+                    loadDashboard();
+                } else {
+                    text.textContent = 'Error';
+                    icon.className = 'ti ti-x me-1';
+                    console.error('Scan error:', data);
+                }
+            } catch (error) {
+                clearInterval(timer);
+                text.textContent = 'Error';
+                icon.className = 'ti ti-x me-1';
+                console.error('Scan error:', error);
+            }
+
+            setTimeout(() => {
+                btn.disabled = false;
+                icon.className = 'ti ti-radar-2 me-1';
+                text.textContent = 'Escanear Ahora';
+                scanRunning = false;
+            }, 3000);
+        }
+
+        // ==========================================
+        // STATUS CHECKS
+        // ==========================================
+        async function checkStatuses() {
+            // Scanner
+            try {
+                const res = await fetch(`${API_URL}/scanner/status`);
+                const data = await res.json();
+                const el = document.getElementById('status-scanner');
+                if (data.running) {
+                    el.innerHTML = '<i class="ti ti-radar-2 text-green"></i> Scanner <span class="badge bg-green badge-sm">Corriendo</span>';
+                } else {
+                    el.innerHTML = '<i class="ti ti-radar-2 text-red"></i> Scanner <span class="badge bg-red badge-sm">Detenido</span>';
+                }
+            } catch (e) { /* ignore */ }
+
+            // TheHive
+            try {
+                const res = await fetch(`${API_URL}/thehive/status`);
+                const data = await res.json();
+                const el = document.getElementById('status-thehive');
+                if (data.status === 'connected') {
+                    el.innerHTML = '<i class="ti ti-briefcase text-green"></i> TheHive <span class="badge bg-green badge-sm">Conectado</span>';
+                } else {
+                    el.innerHTML = '<i class="ti ti-briefcase text-red"></i> TheHive <span class="badge bg-red badge-sm">Desconectado</span>';
+                }
+            } catch (e) { /* ignore */ }
+
+            // Cases count for sidebar
+            try {
+                const res = await fetch(`${API_URL}/thehive/cases`);
+                const data = await res.json();
+                const cases = data.cases || [];
+                const openCases = cases.filter(c => c.status !== 'Resolved' && c.status !== 'Closed').length;
+                const badge = document.getElementById('sidebar-cases-count');
+                if (openCases > 0) {
+                    badge.textContent = openCases;
+                    badge.style.display = 'inline-block';
+                }
+            } catch (e) { /* ignore */ }
         }
 
         // ==========================================
@@ -454,7 +554,7 @@
         // ==========================================
         // INIT
         // ==========================================
-        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadDashboard(); });
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadDashboard(); checkStatuses(); });
         setInterval(loadDashboard, 30000);
     </script>
 </body>

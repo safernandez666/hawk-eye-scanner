@@ -14,7 +14,7 @@
             .navbar-vertical ~ .page-wrapper { margin-left: 200px; }
             .navbar-vertical .nav-link-title { font-size: .8125rem; }
             .navbar-vertical .nav-link-icon { width: 1.25rem; height: 1.25rem; }
-            .navbar-vertical .navbar-brand { font-size: .875rem; }
+            .navbar-vertical .navbar-brand { font-size: 1.25rem; }
         }
         .table-sm-custom td, .table-sm-custom th { padding: .4rem .5rem; font-size: .8125rem; }
     </style>
@@ -24,15 +24,15 @@
         <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
             <div class="container-fluid">
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
-                <h1 class="navbar-brand navbar-brand-autodark"><a href="/"><i class="ti ti-moustache me-1"></i>Poirot</a></h1>
+                <h1 class="navbar-brand navbar-brand-autodark"><a href="/"><i class="ti ti-moustache me-2" style="font-size:1.5rem;"></i>Poirot</a></h1>
                 <div class="collapse navbar-collapse" id="sidebar-menu">
                     <ul class="navbar-nav pt-lg-3">
                         <li class="nav-item"><a class="nav-link" href="/"><span class="nav-link-icon"><i class="ti ti-dashboard"></i></span><span class="nav-link-title">Dashboard</span></a></li>
-                        <li class="nav-item"><a class="nav-link" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span><span class="badge bg-red badge-sm ms-auto" id="sidebar-critical-count" style="display:none;">0</span></a></li>
                         <li class="nav-item"><a class="nav-link active" href="/patterns.html"><span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span><span class="nav-link-title">Patrones</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/timeline.html"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Timeline</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/sources.html"><span class="nav-link-icon"><i class="ti ti-database"></i></span><span class="nav-link-title">Fuentes</span></a></li>
-                        <li class="nav-item"><a class="nav-link" href="http://localhost:9000" target="_blank"><span class="nav-link-icon"><i class="ti ti-bug"></i></span><span class="nav-link-title">TheHive</span><i class="ti ti-external-link ms-auto" style="font-size:.7rem;opacity:.5;"></i></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/cases.html"><span class="nav-link-icon"><i class="ti ti-briefcase"></i></span><span class="nav-link-title">Casos</span><span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span></a></li>
                     </ul>
                 </div>
             </div>
@@ -64,9 +64,37 @@
 
             <div class="page-body" style="padding-top:.5rem;">
                 <div class="container-xl">
+                    <!-- Patrones Configurados (fingerprint.yml) -->
+                    <div class="card mb-2">
+                        <div class="card-header" style="padding:.5rem 1rem;">
+                            <h3 class="card-title" style="font-size:.8125rem;">Patrones Configurados</h3>
+                            <div class="card-actions">
+                                <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addPatternModal" style="font-size:.7rem; padding:.2rem .5rem;">
+                                    <i class="ti ti-plus me-1"></i>Nuevo Patron
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-vcenter card-table table-sm-custom">
+                                <thead>
+                                    <tr>
+                                        <th>Nombre</th>
+                                        <th>Expresion Regular</th>
+                                        <th>Severidad</th>
+                                        <th style="width:100px;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="config-patterns-table">
+                                    <tr><td colspan="4" class="text-center py-3 text-muted">Cargando...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Detecciones por Patron -->
                     <div class="card">
                         <div class="card-header" style="padding:.5rem 1rem;">
-                            <h3 class="card-title" style="font-size:.8125rem;">Distribucion de Patrones</h3>
+                            <h3 class="card-title" style="font-size:.8125rem;">Detecciones por Patron</h3>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-vcenter card-table table-sm-custom" id="patterns-table">
@@ -82,6 +110,65 @@
                                     <tr><td colspan="4" class="text-center py-3 text-muted">Cargando...</td></tr>
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Pattern Modal -->
+            <div class="modal modal-blur fade" id="addPatternModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header py-2">
+                            <h5 class="modal-title" style="font-size:.9rem;">Nuevo Patron</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" style="font-size:.8125rem;">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre del Patron</label>
+                                <input type="text" class="form-control form-control-sm" id="pattern-name" placeholder="Ej: DNI Argentina">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Expresion Regular</label>
+                                <input type="text" class="form-control form-control-sm" id="pattern-regex" placeholder="Ej: \b\d{2}\.\d{3}\.\d{3}\b" style="font-family:monospace;">
+                            </div>
+                            <div class="alert alert-info py-2" style="font-size:.75rem;">
+                                <i class="ti ti-info-circle me-1"></i>La severidad se asigna automaticamente segun el tipo de patron. Los patrones nuevos se clasifican como <strong>MEDIUM</strong> por defecto.
+                            </div>
+                        </div>
+                        <div class="modal-footer py-2">
+                            <button type="button" class="btn btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="addPattern()">
+                                <i class="ti ti-check me-1"></i>Guardar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Pattern Modal -->
+            <div class="modal modal-blur fade" id="editPatternModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header py-2">
+                            <h5 class="modal-title" style="font-size:.9rem;">Editar Patron</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" style="font-size:.8125rem;">
+                            <div class="mb-3">
+                                <label class="form-label">Nombre del Patron</label>
+                                <input type="text" class="form-control form-control-sm" id="edit-pattern-name" readonly style="background:#f1f3f5;">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Expresion Regular</label>
+                                <input type="text" class="form-control form-control-sm" id="edit-pattern-regex" style="font-family:monospace;">
+                            </div>
+                        </div>
+                        <div class="modal-footer py-2">
+                            <button type="button" class="btn btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="saveEditPattern()">
+                                <i class="ti ti-check me-1"></i>Guardar
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -114,7 +201,7 @@
                 const data = await res.json();
                 const tbody = document.querySelector('#patterns-table tbody');
                 if (!data.patterns || data.patterns.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay patrones registrados</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay detecciones registradas</td></tr>';
                     return;
                 }
                 tbody.innerHTML = data.patterns.map(p => `
@@ -128,9 +215,115 @@
             } catch (error) { console.error('Error:', error); }
         }
 
+        async function loadConfigPatterns() {
+            try {
+                const res = await fetch(`${API_URL}/config/patterns`);
+                const data = await res.json();
+                const tbody = document.getElementById('config-patterns-table');
+                if (!data.patterns || data.patterns.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No hay patrones configurados</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.patterns.map(p => `
+                    <tr>
+                        <td>${escapeHtml(p.name)}</td>
+                        <td><code style="font-size:.75rem;">${escapeHtml(p.regex)}</code></td>
+                        <td><span class="badge bg-${getSeverityBg(p.severity)}" style="font-size:.7rem;">${p.severity}</span></td>
+                        <td>
+                            <button class="btn btn-sm btn-icon btn-outline-primary me-1" style="width:24px;height:24px;" onclick="editPattern('${escapeHtml(p.name)}', '${escapeAttr(p.regex)}')" title="Editar">
+                                <i class="ti ti-pencil" style="font-size:.75rem;"></i>
+                            </button>
+                            <button class="btn btn-sm btn-icon btn-outline-danger" style="width:24px;height:24px;" onclick="deletePattern('${escapeHtml(p.name)}')" title="Eliminar">
+                                <i class="ti ti-trash" style="font-size:.75rem;"></i>
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        async function addPattern() {
+            const name = document.getElementById('pattern-name').value.trim();
+            const regex = document.getElementById('pattern-regex').value.trim();
+            if (!name || !regex) { alert('Nombre y expresion regular son requeridos'); return; }
+            try {
+                const res = await fetch(`${API_URL}/config/patterns`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, regex })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Error al agregar patron'); return; }
+                bootstrap.Modal.getInstance(document.getElementById('addPatternModal')).hide();
+                document.getElementById('pattern-name').value = '';
+                document.getElementById('pattern-regex').value = '';
+                loadConfigPatterns();
+            } catch (error) { console.error('Error:', error); alert('Error de conexion'); }
+        }
+
+        function editPattern(name, regex) {
+            document.getElementById('edit-pattern-name').value = name;
+            document.getElementById('edit-pattern-regex').value = regex;
+            new bootstrap.Modal(document.getElementById('editPatternModal')).show();
+        }
+
+        async function saveEditPattern() {
+            const name = document.getElementById('edit-pattern-name').value;
+            const regex = document.getElementById('edit-pattern-regex').value.trim();
+            if (!regex) { alert('La expresion regular es requerida'); return; }
+            try {
+                const res = await fetch(`${API_URL}/config/patterns/${encodeURIComponent(name)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ regex })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Error al editar patron'); return; }
+                bootstrap.Modal.getInstance(document.getElementById('editPatternModal')).hide();
+                loadConfigPatterns();
+            } catch (error) { console.error('Error:', error); alert('Error de conexion'); }
+        }
+
+        async function deletePattern(name) {
+            if (!confirm(`Eliminar el patron "${name}"?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/config/patterns/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Error al eliminar'); return; }
+                loadConfigPatterns();
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function escapeAttr(str) {
+            return str.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
         function getSeverityBg(s) { return { 'CRITICAL':'red','HIGH':'orange','MEDIUM':'yellow','LOW':'green' }[s] || 'secondary'; }
 
-        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadPatterns(); });
+        async function loadSidebarBadges() {
+            try {
+                const res = await fetch(`${API_URL}/stats`);
+                const stats = await res.json();
+                const cp = stats.critical_pending || 0;
+                const el = document.getElementById('sidebar-critical-count');
+                if (cp > 0) { el.textContent = cp; el.style.display = 'inline-block'; }
+            } catch (e) {}
+            try {
+                const res = await fetch(`${API_URL}/thehive/cases`);
+                const data = await res.json();
+                const open = (data.cases || []).filter(c => c.status !== 'Resolved' && c.status !== 'Closed').length;
+                const el = document.getElementById('sidebar-cases-count');
+                if (open > 0) { el.textContent = open; el.style.display = 'inline-block'; }
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadConfigPatterns(); loadPatterns(); loadSidebarBadges(); });
     </script>
 </body>
 </html>

@@ -14,7 +14,7 @@
             .navbar-vertical ~ .page-wrapper { margin-left: 200px; }
             .navbar-vertical .nav-link-title { font-size: .8125rem; }
             .navbar-vertical .nav-link-icon { width: 1.25rem; height: 1.25rem; }
-            .navbar-vertical .navbar-brand { font-size: .875rem; }
+            .navbar-vertical .navbar-brand { font-size: 1.25rem; }
         }
         .source-card .list-group-item { padding: .4rem .75rem; font-size: .8125rem; }
     </style>
@@ -24,15 +24,15 @@
         <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
             <div class="container-fluid">
                 <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
-                <h1 class="navbar-brand navbar-brand-autodark"><a href="/"><i class="ti ti-moustache me-1"></i>Poirot</a></h1>
+                <h1 class="navbar-brand navbar-brand-autodark"><a href="/"><i class="ti ti-moustache me-2" style="font-size:1.5rem;"></i>Poirot</a></h1>
                 <div class="collapse navbar-collapse" id="sidebar-menu">
                     <ul class="navbar-nav pt-lg-3">
                         <li class="nav-item"><a class="nav-link" href="/"><span class="nav-link-icon"><i class="ti ti-dashboard"></i></span><span class="nav-link-title">Dashboard</span></a></li>
-                        <li class="nav-item"><a class="nav-link" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span><span class="badge bg-red badge-sm ms-auto" id="sidebar-critical-count" style="display:none;">0</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/patterns.html"><span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span><span class="nav-link-title">Patrones</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/timeline.html"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Timeline</span></a></li>
                         <li class="nav-item"><a class="nav-link active" href="/sources.html"><span class="nav-link-icon"><i class="ti ti-database"></i></span><span class="nav-link-title">Fuentes</span></a></li>
-                        <li class="nav-item"><a class="nav-link" href="http://localhost:9000" target="_blank"><span class="nav-link-icon"><i class="ti ti-bug"></i></span><span class="nav-link-title">TheHive</span><i class="ti ti-external-link ms-auto" style="font-size:.7rem;opacity:.5;"></i></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/cases.html"><span class="nav-link-icon"><i class="ti ti-briefcase"></i></span><span class="nav-link-title">Casos</span><span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span></a></li>
                     </ul>
                 </div>
             </div>
@@ -57,69 +57,121 @@
 
             <div class="page-header d-print-none" style="padding:.5rem 0;">
                 <div class="container-xl">
-                    <div class="page-pretitle" style="font-size:.625rem;">Poirot DSPM</div>
-                    <h2 class="page-title" style="font-size:1.125rem;">Fuentes de Datos</h2>
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <div class="page-pretitle" style="font-size:.625rem;">Poirot DSPM</div>
+                            <h2 class="page-title" style="font-size:1.125rem;">Fuentes de Datos</h2>
+                        </div>
+                        <div class="ms-auto">
+                            <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#addSourceModal" style="font-size:.7rem; padding:.2rem .5rem;">
+                                <i class="ti ti-plus me-1"></i>Nueva Fuente
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="page-body" style="padding-top:.5rem;">
                 <div class="container-xl">
-                    <div class="row row-cards mb-2">
-                        <div class="col-md-6">
-                            <div class="card source-card">
-                                <div class="card-header" style="padding:.5rem .75rem;">
-                                    <h3 class="card-title" style="font-size:.8125rem;"><i class="ti ti-database me-1"></i>MySQL</h3>
-                                </div>
-                                <div class="card-body py-2 px-3">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <span class="bg-blue-lt text-blue rounded p-1 d-inline-flex me-2">
-                                            <i class="ti ti-database" style="font-size:1.25rem;"></i>
-                                        </span>
-                                        <div>
-                                            <div style="font-size:.8125rem; font-weight:500;">Base de Datos MySQL</div>
-                                            <div class="text-muted" style="font-size:.7rem;">Escaneo de tablas y columnas</div>
-                                        </div>
-                                    </div>
-                                    <div class="list-group list-group-flush">
-                                        <div class="list-group-item d-flex justify-content-between"><span>Host</span><code style="font-size:.75rem;">hawk-mysql:3306</code></div>
-                                        <div class="list-group-item d-flex justify-content-between"><span>Base de datos</span><code style="font-size:.75rem;">pocdb</code></div>
-                                        <div class="list-group-item d-flex justify-content-between"><span>Estado</span><span class="badge bg-green badge-sm">Conectado</span></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="col-md-6">
-                            <div class="card source-card">
-                                <div class="card-header" style="padding:.5rem .75rem;">
-                                    <h3 class="card-title" style="font-size:.8125rem;"><i class="ti ti-cloud me-1"></i>Amazon S3</h3>
-                                </div>
-                                <div class="card-body py-2 px-3">
-                                    <div class="d-flex align-items-center mb-2">
-                                        <span class="bg-azure-lt text-azure rounded p-1 d-inline-flex me-2">
-                                            <i class="ti ti-cloud" style="font-size:1.25rem;"></i>
-                                        </span>
-                                        <div>
-                                            <div style="font-size:.8125rem; font-weight:500;">Buckets S3</div>
-                                            <div class="text-muted" style="font-size:.7rem;">Escaneo de archivos en cloud storage</div>
-                                        </div>
-                                    </div>
-                                    <div class="list-group list-group-flush">
-                                        <div class="list-group-item d-flex justify-content-between"><span>Endpoint</span><code style="font-size:.75rem;">localstack:4566</code></div>
-                                        <div class="list-group-item d-flex justify-content-between"><span>Bucket</span><code style="font-size:.75rem;">poc-bucket</code></div>
-                                        <div class="list-group-item d-flex justify-content-between"><span>Estado</span><span class="badge bg-green badge-sm">Conectado</span></div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card">
+                    <!-- Estadisticas por Fuente - ARRIBA -->
+                    <div class="card mb-2">
                         <div class="card-header" style="padding:.5rem 1rem;">
                             <h3 class="card-title" style="font-size:.8125rem;">Estadisticas por Fuente</h3>
                         </div>
                         <div class="card-body" style="padding:.5rem 1rem;">
                             <div id="sources-chart" style="height: 240px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Fuentes Configuradas - ABAJO -->
+                    <div class="row row-cards mb-2" id="sources-cards">
+                        <div class="col-12 text-center text-muted py-3">Cargando fuentes...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add Source Modal -->
+            <div class="modal modal-blur fade" id="addSourceModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header py-2">
+                            <h5 class="modal-title" style="font-size:.9rem;">Nueva Fuente de Datos</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" style="font-size:.8125rem;">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo</label>
+                                <select class="form-select form-select-sm" id="source-type" onchange="updateFormFields()">
+                                    <option value="mysql">MySQL</option>
+                                    <option value="s3">S3</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Nombre (identificador)</label>
+                                <input type="text" class="form-control form-control-sm" id="source-name" placeholder="Ej: production_db">
+                            </div>
+                            <div id="mysql-fields">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-8">
+                                        <label class="form-label">Host</label>
+                                        <input type="text" class="form-control form-control-sm" id="mysql-host" placeholder="hostname">
+                                    </div>
+                                    <div class="col-4">
+                                        <label class="form-label">Puerto</label>
+                                        <input type="number" class="form-control form-control-sm" id="mysql-port" value="3306">
+                                    </div>
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label">Usuario</label>
+                                        <input type="text" class="form-control form-control-sm" id="mysql-user" placeholder="root">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Password</label>
+                                        <input type="password" class="form-control form-control-sm" id="mysql-password">
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Base de datos</label>
+                                    <input type="text" class="form-control form-control-sm" id="mysql-database" placeholder="mydb">
+                                </div>
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label">Limit Start</label>
+                                        <input type="number" class="form-control form-control-sm" id="mysql-limit-start" value="0">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Limit End</label>
+                                        <input type="number" class="form-control form-control-sm" id="mysql-limit-end" value="10000">
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="s3-fields" style="display:none;">
+                                <div class="row g-2 mb-2">
+                                    <div class="col-6">
+                                        <label class="form-label">Access Key</label>
+                                        <input type="text" class="form-control form-control-sm" id="s3-access-key">
+                                    </div>
+                                    <div class="col-6">
+                                        <label class="form-label">Secret Key</label>
+                                        <input type="password" class="form-control form-control-sm" id="s3-secret-key">
+                                    </div>
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Bucket Name</label>
+                                    <input type="text" class="form-control form-control-sm" id="s3-bucket" placeholder="my-bucket">
+                                </div>
+                                <div class="mb-2">
+                                    <label class="form-label">Endpoint URL</label>
+                                    <input type="text" class="form-control form-control-sm" id="s3-endpoint" placeholder="http://s3.amazonaws.com">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer py-2">
+                            <button type="button" class="btn btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                            <button type="button" class="btn btn-primary btn-sm" onclick="addSource()">
+                                <i class="ti ti-check me-1"></i>Guardar
+                            </button>
                         </div>
                     </div>
                 </div>
@@ -136,6 +188,8 @@
     <script>
         const API_URL = '/api';
         const THEME_KEY = 'poirot-theme';
+        let healthData = {};
+
         function initTheme() {
             const saved = localStorage.getItem(THEME_KEY) || 'light';
             document.documentElement.setAttribute('data-bs-theme', saved);
@@ -147,7 +201,110 @@
             document.getElementById('theme-icon').className = theme === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
         }
 
-        async function loadSources() {
+        const sourceIcons = { mysql: 'database', s3: 'cloud', postgresql: 'database', redis: 'server', fs: 'folder' };
+        const sourceColors = { mysql: 'blue', s3: 'azure', postgresql: 'indigo', redis: 'red', fs: 'green' };
+        const sourceLabels = { mysql: 'MySQL', s3: 'Amazon S3', postgresql: 'PostgreSQL', redis: 'Redis', fs: 'Filesystem' };
+
+        function getSourceFields(type, config) {
+            if (type === 'mysql') return [
+                { label: 'Host', value: `${config.host}:${config.port || 3306}` },
+                { label: 'Base de datos', value: config.database },
+                { label: 'Usuario', value: config.user }
+            ];
+            if (type === 's3') return [
+                { label: 'Endpoint', value: config.endpoint_url },
+                { label: 'Bucket', value: config.bucket_name }
+            ];
+            return Object.entries(config).slice(0, 3).map(([k, v]) => ({ label: k, value: String(v) }));
+        }
+
+        function getHealthBadge(type, name) {
+            const key = `${type}/${name}`;
+            const h = healthData[key];
+            if (!h) return '<span class="badge bg-secondary" style="font-size:.65rem;">Verificando...</span>';
+            if (h.status === 'connected') return '<span class="badge bg-green" style="font-size:.65rem;">Conectado</span>';
+            return '<span class="badge bg-red" style="font-size:.65rem;">Error</span>';
+        }
+
+        async function loadSourcesHealth() {
+            try {
+                const res = await fetch(`${API_URL}/config/sources/health`);
+                const data = await res.json();
+                (data.sources || []).forEach(s => {
+                    healthData[`${s.type}/${s.name}`] = s;
+                });
+                // Update health badges in cards
+                document.querySelectorAll('[data-health-key]').forEach(el => {
+                    const key = el.getAttribute('data-health-key');
+                    const h = healthData[key];
+                    if (h && h.status === 'connected') {
+                        el.innerHTML = '<span class="badge bg-green" style="font-size:.65rem;">Conectado</span>';
+                    } else if (h) {
+                        el.innerHTML = `<span class="badge bg-red" style="font-size:.65rem;" title="${escapeHtml(h.message)}">Error</span>`;
+                    }
+                });
+            } catch (error) { console.error('Health check error:', error); }
+        }
+
+        async function loadConfigSources() {
+            try {
+                const res = await fetch(`${API_URL}/config/sources`);
+                const data = await res.json();
+                const container = document.getElementById('sources-cards');
+                if (!data.sources || data.sources.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center text-muted py-3">No hay fuentes configuradas</div>';
+                    return;
+                }
+                container.innerHTML = data.sources.map(s => {
+                    const icon = sourceIcons[s.type] || 'help';
+                    const color = sourceColors[s.type] || 'secondary';
+                    const label = sourceLabels[s.type] || s.type;
+                    const fields = getSourceFields(s.type, s.config);
+                    const healthKey = `${s.type}/${s.name}`;
+                    return `
+                        <div class="col-md-6">
+                            <div class="card source-card">
+                                <div class="card-header" style="padding:.5rem .75rem;">
+                                    <h3 class="card-title" style="font-size:.8125rem;"><i class="ti ti-${icon} me-1"></i>${label}: ${escapeHtml(s.name)}</h3>
+                                    <div class="card-actions">
+                                        <button class="btn btn-sm btn-icon btn-outline-danger" style="width:24px;height:24px;" onclick="deleteSource('${s.type}','${escapeHtml(s.name)}')">
+                                            <i class="ti ti-trash" style="font-size:.75rem;"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="card-body py-2 px-3">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="bg-${color}-lt text-${color} rounded p-1 d-inline-flex me-2">
+                                            <i class="ti ti-${icon}" style="font-size:1.25rem;"></i>
+                                        </span>
+                                        <div>
+                                            <div style="font-size:.8125rem; font-weight:500;">${label}</div>
+                                            <div class="text-muted" style="font-size:.7rem;">${escapeHtml(s.name)}</div>
+                                        </div>
+                                    </div>
+                                    <div class="list-group list-group-flush">
+                                        ${fields.map(f => `
+                                            <div class="list-group-item d-flex justify-content-between">
+                                                <span>${f.label}</span>
+                                                <code style="font-size:.75rem;">${escapeHtml(String(f.value))}</code>
+                                            </div>
+                                        `).join('')}
+                                        <div class="list-group-item d-flex justify-content-between">
+                                            <span>Estado</span>
+                                            <span data-health-key="${healthKey}"><span class="badge bg-secondary" style="font-size:.65rem;">Verificando...</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+                // Load health after cards are rendered
+                loadSourcesHealth();
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        async function loadSourcesChart() {
             try {
                 const res = await fetch(`${API_URL}/stats`);
                 const data = await res.json();
@@ -164,7 +321,86 @@
             } catch (error) { console.error('Error:', error); }
         }
 
-        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadSources(); });
+        function updateFormFields() {
+            const type = document.getElementById('source-type').value;
+            document.getElementById('mysql-fields').style.display = type === 'mysql' ? 'block' : 'none';
+            document.getElementById('s3-fields').style.display = type === 's3' ? 'block' : 'none';
+        }
+
+        async function addSource() {
+            const type = document.getElementById('source-type').value;
+            const name = document.getElementById('source-name').value.trim();
+            if (!name) { alert('El nombre es requerido'); return; }
+
+            let config = {};
+            if (type === 'mysql') {
+                config = {
+                    host: document.getElementById('mysql-host').value.trim(),
+                    port: parseInt(document.getElementById('mysql-port').value) || 3306,
+                    user: document.getElementById('mysql-user').value.trim(),
+                    password: document.getElementById('mysql-password').value,
+                    database: document.getElementById('mysql-database').value.trim(),
+                    limit_start: parseInt(document.getElementById('mysql-limit-start').value) || 0,
+                    limit_end: parseInt(document.getElementById('mysql-limit-end').value) || 10000
+                };
+            } else if (type === 's3') {
+                config = {
+                    access_key: document.getElementById('s3-access-key').value.trim(),
+                    secret_key: document.getElementById('s3-secret-key').value,
+                    bucket_name: document.getElementById('s3-bucket').value.trim(),
+                    endpoint_url: document.getElementById('s3-endpoint').value.trim(),
+                    cache: false
+                };
+            }
+
+            try {
+                const res = await fetch(`${API_URL}/config/sources`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ type, name, config })
+                });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Error al agregar fuente'); return; }
+                bootstrap.Modal.getInstance(document.getElementById('addSourceModal')).hide();
+                document.getElementById('source-name').value = '';
+                loadConfigSources();
+            } catch (error) { console.error('Error:', error); alert('Error de conexion'); }
+        }
+
+        async function deleteSource(type, name) {
+            if (!confirm(`Eliminar la fuente "${type}/${name}"?`)) return;
+            try {
+                const res = await fetch(`${API_URL}/config/sources/${type}/${encodeURIComponent(name)}`, { method: 'DELETE' });
+                const data = await res.json();
+                if (!res.ok) { alert(data.error || 'Error al eliminar'); return; }
+                loadConfigSources();
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        async function loadSidebarBadges() {
+            try {
+                const res = await fetch(`${API_URL}/stats`);
+                const stats = await res.json();
+                const cp = stats.critical_pending || 0;
+                const el = document.getElementById('sidebar-critical-count');
+                if (cp > 0) { el.textContent = cp; el.style.display = 'inline-block'; }
+            } catch (e) {}
+            try {
+                const res = await fetch(`${API_URL}/thehive/cases`);
+                const data = await res.json();
+                const open = (data.cases || []).filter(c => c.status !== 'Resolved' && c.status !== 'Closed').length;
+                const el = document.getElementById('sidebar-cases-count');
+                if (open > 0) { el.textContent = open; el.style.display = 'inline-block'; }
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadConfigSources(); loadSourcesChart(); loadSidebarBadges(); });
     </script>
 </body>
 </html>

@@ -139,10 +139,19 @@ services:
       - "8080:80"
     environment:
       - ALERTS_DB_PATH=/app/data/alerts.db
+      - FINGERPRINT_PATH=/app/config/fingerprint.yml
+      - CONNECTION_PATH=/app/config/connection.yml
       - FLASK_DEBUG=false
+      - THEHIVE_URL=http://thehive:9000
+      - THEHIVE_API_KEY=cyj8nR1aydTRN3ONoeJhIjRbYI9YYLix
     volumes:
       # Compartir la base de datos SQLite del scanner
-      - ./hawk-scanner/data:/app/data:ro
+      - ./hawk-scanner/data:/app/data
+      # Config files (read-write para CRUD desde la UI)
+      - ./hawk-scanner/fingerprint.yml:/app/config/fingerprint.yml
+      - ./hawk-scanner/connection.yml:/app/config/connection.yml
+      # Docker socket para trigger de escaneo manual
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - hawk-network
     restart: unless-stopped
