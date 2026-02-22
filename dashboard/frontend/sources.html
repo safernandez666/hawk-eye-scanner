@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Fuentes - Poirot DSPM</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+
+    <style>
+        @media (min-width: 992px) {
+            .navbar-vertical { width: 200px; }
+            .navbar-vertical ~ .page-wrapper { margin-left: 200px; }
+            .navbar-vertical .nav-link-title { font-size: .8125rem; }
+            .navbar-vertical .nav-link-icon { width: 1.25rem; height: 1.25rem; }
+            .navbar-vertical .navbar-brand { font-size: .875rem; }
+        }
+        .source-card .list-group-item { padding: .4rem .75rem; font-size: .8125rem; }
+    </style>
+</head>
+<body class="page">
+    <div class="page">
+        <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+            <div class="container-fluid">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
+                <h1 class="navbar-brand navbar-brand-autodark"><a href="/"><i class="ti ti-moustache me-1"></i>Poirot</a></h1>
+                <div class="collapse navbar-collapse" id="sidebar-menu">
+                    <ul class="navbar-nav pt-lg-3">
+                        <li class="nav-item"><a class="nav-link" href="/"><span class="nav-link-icon"><i class="ti ti-dashboard"></i></span><span class="nav-link-title">Dashboard</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/patterns.html"><span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span><span class="nav-link-title">Patrones</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/timeline.html"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Timeline</span></a></li>
+                        <li class="nav-item"><a class="nav-link active" href="/sources.html"><span class="nav-link-icon"><i class="ti ti-database"></i></span><span class="nav-link-title">Fuentes</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="http://localhost:9000" target="_blank"><span class="nav-link-icon"><i class="ti ti-bug"></i></span><span class="nav-link-title">TheHive</span><i class="ti ti-external-link ms-auto" style="font-size:.7rem;opacity:.5;"></i></a></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md d-print-none" style="min-height:auto; padding:.4rem 0;">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
+                    <div class="navbar-nav flex-row order-md-last">
+                        <div class="nav-item dropdown me-2">
+                            <a href="#" class="nav-link px-0" data-bs-toggle="dropdown"><i class="ti ti-moon" id="theme-icon" style="font-size:1rem;"></i></a>
+                            <div class="dropdown-menu dropdown-menu-end">
+                                <a class="dropdown-item" href="#" onclick="setTheme('light')"><i class="ti ti-sun me-2"></i>Light</a>
+                                <a class="dropdown-item" href="#" onclick="setTheme('dark')"><i class="ti ti-moon me-2"></i>Dark</a>
+                            </div>
+                        </div>
+                        <div class="nav-item"><a href="#" class="nav-link px-0" style="font-size:.8125rem;"><i class="ti ti-user me-1"></i>Admin</a></div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-header d-print-none" style="padding:.5rem 0;">
+                <div class="container-xl">
+                    <div class="page-pretitle" style="font-size:.625rem;">Poirot DSPM</div>
+                    <h2 class="page-title" style="font-size:1.125rem;">Fuentes de Datos</h2>
+                </div>
+            </div>
+
+            <div class="page-body" style="padding-top:.5rem;">
+                <div class="container-xl">
+                    <div class="row row-cards mb-2">
+                        <div class="col-md-6">
+                            <div class="card source-card">
+                                <div class="card-header" style="padding:.5rem .75rem;">
+                                    <h3 class="card-title" style="font-size:.8125rem;"><i class="ti ti-database me-1"></i>MySQL</h3>
+                                </div>
+                                <div class="card-body py-2 px-3">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="bg-blue-lt text-blue rounded p-1 d-inline-flex me-2">
+                                            <i class="ti ti-database" style="font-size:1.25rem;"></i>
+                                        </span>
+                                        <div>
+                                            <div style="font-size:.8125rem; font-weight:500;">Base de Datos MySQL</div>
+                                            <div class="text-muted" style="font-size:.7rem;">Escaneo de tablas y columnas</div>
+                                        </div>
+                                    </div>
+                                    <div class="list-group list-group-flush">
+                                        <div class="list-group-item d-flex justify-content-between"><span>Host</span><code style="font-size:.75rem;">hawk-mysql:3306</code></div>
+                                        <div class="list-group-item d-flex justify-content-between"><span>Base de datos</span><code style="font-size:.75rem;">pocdb</code></div>
+                                        <div class="list-group-item d-flex justify-content-between"><span>Estado</span><span class="badge bg-green badge-sm">Conectado</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="col-md-6">
+                            <div class="card source-card">
+                                <div class="card-header" style="padding:.5rem .75rem;">
+                                    <h3 class="card-title" style="font-size:.8125rem;"><i class="ti ti-cloud me-1"></i>Amazon S3</h3>
+                                </div>
+                                <div class="card-body py-2 px-3">
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="bg-azure-lt text-azure rounded p-1 d-inline-flex me-2">
+                                            <i class="ti ti-cloud" style="font-size:1.25rem;"></i>
+                                        </span>
+                                        <div>
+                                            <div style="font-size:.8125rem; font-weight:500;">Buckets S3</div>
+                                            <div class="text-muted" style="font-size:.7rem;">Escaneo de archivos en cloud storage</div>
+                                        </div>
+                                    </div>
+                                    <div class="list-group list-group-flush">
+                                        <div class="list-group-item d-flex justify-content-between"><span>Endpoint</span><code style="font-size:.75rem;">localstack:4566</code></div>
+                                        <div class="list-group-item d-flex justify-content-between"><span>Bucket</span><code style="font-size:.75rem;">poc-bucket</code></div>
+                                        <div class="list-group-item d-flex justify-content-between"><span>Estado</span><span class="badge bg-green badge-sm">Conectado</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header" style="padding:.5rem 1rem;">
+                            <h3 class="card-title" style="font-size:.8125rem;">Estadisticas por Fuente</h3>
+                        </div>
+                        <div class="card-body" style="padding:.5rem 1rem;">
+                            <div id="sources-chart" style="height: 240px;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="footer footer-transparent d-print-none" style="padding:.5rem 0; font-size:.75rem;">
+                <div class="container-xl"><strong>Poirot DSPM</strong> &copy; 2025</div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <script>
+        const API_URL = '/api';
+        const THEME_KEY = 'poirot-theme';
+        function initTheme() {
+            const saved = localStorage.getItem(THEME_KEY) || 'light';
+            document.documentElement.setAttribute('data-bs-theme', saved);
+            document.getElementById('theme-icon').className = saved === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+        }
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem(THEME_KEY, theme);
+            document.getElementById('theme-icon').className = theme === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+        }
+
+        async function loadSources() {
+            try {
+                const res = await fetch(`${API_URL}/stats`);
+                const data = await res.json();
+                const sources = data.by_source || {};
+                new ApexCharts(document.getElementById('sources-chart'), {
+                    chart: { type: 'bar', height: 240, toolbar: { show: false }, fontFamily: 'inherit' },
+                    series: [{ name: 'Alertas', data: Object.values(sources) }],
+                    xaxis: { categories: Object.keys(sources), labels: { style: { fontSize: '11px' } } },
+                    yaxis: { labels: { style: { fontSize: '11px' } } },
+                    colors: ['#206bc4', '#4299e1'],
+                    plotOptions: { bar: { borderRadius: 3, distributed: true, columnWidth: '40%' } },
+                    legend: { show: false }
+                }).render();
+            } catch (error) { console.error('Error:', error); }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadSources(); });
+    </script>
+</body>
+</html>

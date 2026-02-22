@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Poirot DSPM Dashboard</title>
+
+    <!-- Tabler CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+
+    <style>
+        /* Compact sidebar */
+        @media (min-width: 992px) {
+            .navbar-vertical { width: 200px; }
+            .navbar-vertical ~ .page-wrapper { margin-left: 200px; }
+            .navbar-vertical .nav-link-title { font-size: .8125rem; }
+            .navbar-vertical .nav-link-icon { width: 1.25rem; height: 1.25rem; }
+            .navbar-vertical .navbar-brand { font-size: .875rem; }
+        }
+        /* Compact cards */
+        .stat-card .card-body { padding: .75rem 1rem; }
+        .stat-card .subheader { font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; }
+        .stat-card .stat-value { font-size: 1.5rem; font-weight: 700; line-height: 1.2; }
+        .stat-card .stat-icon { width: 32px; height: 32px; font-size: .875rem; }
+        .stat-card { transition: transform 0.15s; }
+        .stat-card:hover { transform: translateY(-2px); }
+        /* Compact table */
+        .table-sm-custom td, .table-sm-custom th { padding: .4rem .5rem; font-size: .8125rem; }
+        /* System status bar */
+        .status-bar .status-item { display: inline-flex; align-items: center; gap: .35rem; font-size: .75rem; }
+    </style>
+</head>
+<body class="page">
+    <div class="page">
+        <!-- Sidebar -->
+        <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+            <div class="container-fluid">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+                <h1 class="navbar-brand navbar-brand-autodark">
+                    <a href="/">
+                        <i class="ti ti-moustache me-1"></i>Poirot
+                    </a>
+                </h1>
+                <div class="collapse navbar-collapse" id="sidebar-menu">
+                    <ul class="navbar-nav pt-lg-3">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="/">
+                                <span class="nav-link-icon"><i class="ti ti-dashboard"></i></span>
+                                <span class="nav-link-title">Dashboard</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/alerts.html">
+                                <span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span>
+                                <span class="nav-link-title">Alertas</span>
+                                <span class="badge bg-red badge-sm ms-auto" id="sidebar-critical-count">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/patterns.html">
+                                <span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span>
+                                <span class="nav-link-title">Patrones</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/timeline.html">
+                                <span class="nav-link-icon"><i class="ti ti-chart-line"></i></span>
+                                <span class="nav-link-title">Timeline</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/sources.html">
+                                <span class="nav-link-icon"><i class="ti ti-database"></i></span>
+                                <span class="nav-link-title">Fuentes</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="http://localhost:9000" target="_blank">
+                                <span class="nav-link-icon"><i class="ti ti-bug"></i></span>
+                                <span class="nav-link-title">TheHive</span>
+                                <i class="ti ti-external-link ms-auto" style="font-size:.7rem; opacity:.5;"></i>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Page Wrapper -->
+        <div class="page-wrapper">
+            <!-- Top Navbar -->
+            <header class="navbar navbar-expand-md d-print-none" style="min-height:auto; padding: .4rem 0;">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu">
+                        <span class="navbar-toggler-icon"></span>
+                    </button>
+                    <div class="navbar-nav flex-row order-md-last">
+                        <div class="nav-item dropdown me-2">
+                            <a href="#" class="nav-link px-0" data-bs-toggle="dropdown">
+                                <i class="ti ti-moon" id="theme-icon" style="font-size:1rem;"></i>
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-end">
+                                <a class="dropdown-item" href="#" onclick="setTheme('light')"><i class="ti ti-sun me-2"></i>Light</a>
+                                <a class="dropdown-item" href="#" onclick="setTheme('dark')"><i class="ti ti-moon me-2"></i>Dark</a>
+                            </div>
+                        </div>
+                        <div class="nav-item dropdown me-2">
+                            <a href="#" class="nav-link px-0" data-bs-toggle="dropdown">
+                                <i class="ti ti-bell" style="font-size:1rem;"></i>
+                                <span class="badge bg-red badge-notification badge-blink" id="navbar-alert-indicator" style="display:none;"></span>
+                            </a>
+                            <div class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
+                                <span class="dropdown-header">Notificaciones</span>
+                                <div id="notifications-list">
+                                    <a class="dropdown-item text-center text-muted small" href="#">Cargando...</a>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="nav-item">
+                            <a href="#" class="nav-link px-0" style="font-size:.8125rem;">
+                                <i class="ti ti-user me-1"></i>Admin
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page Header -->
+            <div class="page-header d-print-none" style="padding: .5rem 0;">
+                <div class="container-xl">
+                    <div class="page-pretitle" style="font-size:.625rem;">Poirot DSPM</div>
+                    <h2 class="page-title" style="font-size:1.125rem;">Dashboard</h2>
+                </div>
+            </div>
+
+            <!-- Page Body -->
+            <div class="page-body" style="padding-top:.5rem;">
+                <div class="container-xl">
+                    <!-- Stats Cards -->
+                    <div class="row row-deck row-cards mb-2">
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Total Alertas</div>
+                                        <div class="ms-auto">
+                                            <span class="bg-blue text-white rounded d-inline-flex align-items-center justify-content-center stat-icon">
+                                                <i class="ti ti-alert-triangle"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="stat-value mt-1" id="stat-total">-</div>
+                                    <div class="text-muted" style="font-size:.7rem;">Alertas en sistema</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Criticas Pendientes</div>
+                                        <div class="ms-auto">
+                                            <span class="bg-red text-white rounded d-inline-flex align-items-center justify-content-center stat-icon">
+                                                <i class="ti ti-flame"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="stat-value mt-1 text-red" id="stat-critical">-</div>
+                                    <div class="text-red" style="font-size:.7rem;"><i class="ti ti-arrow-up" style="font-size:.6rem;"></i> Requieren atencion</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Re-aperturas</div>
+                                        <div class="ms-auto">
+                                            <span class="bg-orange text-white rounded d-inline-flex align-items-center justify-content-center stat-icon">
+                                                <i class="ti ti-refresh"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="stat-value mt-1 text-orange" id="stat-reopened">-</div>
+                                    <div class="text-muted" style="font-size:.7rem;">Recurrentes</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-sm-6 col-lg-3">
+                            <div class="card stat-card">
+                                <div class="card-body">
+                                    <div class="d-flex align-items-center">
+                                        <div class="subheader">Casos TheHive</div>
+                                        <div class="ms-auto">
+                                            <span class="bg-azure text-white rounded d-inline-flex align-items-center justify-content-center stat-icon">
+                                                <i class="ti ti-bug"></i>
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div class="stat-value mt-1" id="stat-thehive">-</div>
+                                    <div class="text-muted" style="font-size:.7rem;">En plataforma SOAR</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Charts Row -->
+                    <div class="row row-deck row-cards mb-2">
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header" style="padding:.5rem 1rem;">
+                                    <h3 class="card-title" style="font-size:.8125rem;">Distribucion por Severidad</h3>
+                                </div>
+                                <div class="card-body" style="padding:.5rem 1rem;">
+                                    <div id="severity-chart" style="height: 220px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-lg-6">
+                            <div class="card">
+                                <div class="card-header" style="padding:.5rem 1rem;">
+                                    <h3 class="card-title" style="font-size:.8125rem;">Fuentes de Datos</h3>
+                                </div>
+                                <div class="card-body" style="padding:.5rem 1rem;">
+                                    <div id="sources-chart" style="height: 220px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Recent Alerts -->
+                    <div class="row row-cards mb-2">
+                        <div class="col-12">
+                            <div class="card">
+                                <div class="card-header" style="padding:.5rem 1rem;">
+                                    <h3 class="card-title" style="font-size:.8125rem;">Alertas Recientes</h3>
+                                    <div class="card-actions">
+                                        <a href="/alerts.html" class="btn btn-primary btn-sm" style="font-size:.7rem; padding:.2rem .5rem;">Ver todas</a>
+                                    </div>
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="table table-vcenter card-table table-sm-custom">
+                                        <thead>
+                                            <tr>
+                                                <th>Severidad</th>
+                                                <th>Patron</th>
+                                                <th>Fuente</th>
+                                                <th>Ubicacion</th>
+                                                <th>Estado</th>
+                                                <th>Primera deteccion</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="recent-alerts-table">
+                                            <tr>
+                                                <td colspan="6" class="text-center py-3 text-muted">Cargando...</td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- System Status - compact bar -->
+                    <div class="card mb-2">
+                        <div class="card-body status-bar py-2 px-3">
+                            <div class="d-flex flex-wrap gap-4 align-items-center">
+                                <span class="text-muted" style="font-size:.75rem; font-weight:600;">ESTADO:</span>
+                                <span class="status-item"><i class="ti ti-database text-green"></i> SQLite <span class="badge bg-green badge-sm">OK</span></span>
+                                <span class="status-item"><i class="ti ti-server text-green"></i> MySQL <span class="badge bg-green badge-sm">Conectado</span></span>
+                                <span class="status-item"><i class="ti ti-cloud text-green"></i> S3 <span class="badge bg-green badge-sm">Conectado</span></span>
+                                <span class="status-item"><i class="ti ti-bug text-green"></i> TheHive <span class="badge bg-green badge-sm">Integrado</span></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <footer class="footer footer-transparent d-print-none" style="padding:.5rem 0; font-size:.75rem;">
+                <div class="container-xl">
+                    <div class="row align-items-center">
+                        <div class="col-auto"><strong>Poirot DSPM</strong> &copy; 2025</div>
+                        <div class="col-auto ms-auto">
+                            <a href="https://github.com/safernandez666/hawk-eye-scanner" target="_blank" class="text-muted">
+                                <i class="ti ti-brand-github me-1"></i>GitHub
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+
+    <script>
+        const API_URL = '/api';
+
+        const severityColors = {
+            'CRITICAL': '#d63939',
+            'HIGH': '#f76707',
+            'MEDIUM': '#f59f00',
+            'LOW': '#2fb344'
+        };
+
+        // ==========================================
+        // DARK MODE (Tabler native)
+        // ==========================================
+        const THEME_KEY = 'poirot-theme';
+
+        function initTheme() {
+            const saved = localStorage.getItem(THEME_KEY) || 'light';
+            document.documentElement.setAttribute('data-bs-theme', saved);
+            updateThemeIcon(saved);
+        }
+
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem(THEME_KEY, theme);
+            updateThemeIcon(theme);
+        }
+
+        function updateThemeIcon(theme) {
+            document.getElementById('theme-icon').className = theme === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+        }
+
+        // ==========================================
+        // DASHBOARD DATA
+        // ==========================================
+        let severityChart = null;
+        let sourcesChart = null;
+
+        async function loadDashboard() {
+            try {
+                const statsRes = await fetch(`${API_URL}/stats`);
+                const stats = await statsRes.json();
+                updateStats(stats);
+                updateCharts(stats);
+
+                const alertsRes = await fetch(`${API_URL}/alerts?limit=10`);
+                const alerts = await alertsRes.json();
+                updateRecentAlerts(alerts.alerts);
+                updateNotifications(alerts.alerts);
+            } catch (error) {
+                console.error('Error loading dashboard:', error);
+            }
+        }
+
+        function updateStats(stats) {
+            document.getElementById('stat-total').textContent = stats.total_alerts || 0;
+            document.getElementById('stat-critical').textContent = stats.critical_pending || 0;
+            document.getElementById('stat-reopened').textContent = stats.reopened_alerts || 0;
+            document.getElementById('sidebar-critical-count').textContent = stats.critical_pending || 0;
+
+            const thehiveTotal = Object.values(stats.thehive_stats || {}).reduce((a, b) => a + b, 0);
+            document.getElementById('stat-thehive').textContent = thehiveTotal;
+
+            const indicator = document.getElementById('navbar-alert-indicator');
+            indicator.style.display = stats.critical_pending > 0 ? 'inline-flex' : 'none';
+        }
+
+        function updateCharts(stats) {
+            const severityData = stats.by_severity || {};
+            const labels = Object.keys(severityData);
+            const values = Object.values(severityData);
+            const colors = labels.map(s => severityColors[s] || '#6c757d');
+
+            if (severityChart) severityChart.destroy();
+            severityChart = new ApexCharts(document.getElementById('severity-chart'), {
+                chart: { type: 'donut', height: 220, fontFamily: 'inherit' },
+                labels: labels,
+                series: values,
+                colors: colors,
+                plotOptions: { pie: { donut: { size: '70%' } } },
+                legend: { position: 'bottom', fontSize: '11px' },
+                dataLabels: { style: { fontSize: '11px' } }
+            });
+            severityChart.render();
+
+            const sourcesData = stats.by_source || {};
+            if (sourcesChart) sourcesChart.destroy();
+            sourcesChart = new ApexCharts(document.getElementById('sources-chart'), {
+                chart: { type: 'bar', height: 220, toolbar: { show: false }, fontFamily: 'inherit' },
+                series: [{ name: 'Alertas', data: Object.values(sourcesData) }],
+                xaxis: { categories: Object.keys(sourcesData), labels: { style: { fontSize: '11px' } } },
+                yaxis: { labels: { style: { fontSize: '11px' } } },
+                colors: ['#206bc4'],
+                plotOptions: { bar: { borderRadius: 3, columnWidth: '50%' } }
+            });
+            sourcesChart.render();
+        }
+
+        function updateRecentAlerts(alerts) {
+            const tbody = document.getElementById('recent-alerts-table');
+            if (!alerts || alerts.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-3 text-muted">No hay alertas registradas</td></tr>';
+                return;
+            }
+            tbody.innerHTML = alerts.map(alert => `
+                <tr>
+                    <td><span class="badge bg-${getSeverityBg(alert.severity)}" style="font-size:.7rem;">${alert.severity}</span></td>
+                    <td>${alert.pattern_name}</td>
+                    <td><i class="ti ti-${getSourceIcon(alert.data_source)} me-1"></i>${alert.data_source}</td>
+                    <td><code style="font-size:.75rem;">${alert.location}</code></td>
+                    <td><span class="badge bg-${getStatusBg(alert.status)}" style="font-size:.7rem;">${alert.status}</span></td>
+                    <td>${formatDate(alert.first_seen)}</td>
+                </tr>
+            `).join('');
+        }
+
+        function updateNotifications(alerts) {
+            const list = document.getElementById('notifications-list');
+            const critical = (alerts || []).filter(a => a.severity === 'CRITICAL').slice(0, 5);
+            if (critical.length === 0) {
+                list.innerHTML = '<a class="dropdown-item text-center text-muted small" href="#">No hay alertas criticas</a>';
+                return;
+            }
+            list.innerHTML = critical.map(a => `
+                <a href="/alerts.html" class="dropdown-item">
+                    <div class="d-flex">
+                        <span class="text-red me-2"><i class="ti ti-alert-triangle"></i></span>
+                        <div>
+                            <div class="small">${a.pattern_name}</div>
+                            <div class="text-muted" style="font-size:.7rem;">${a.location}</div>
+                        </div>
+                    </div>
+                </a>
+            `).join('');
+        }
+
+        // ==========================================
+        // HELPERS
+        // ==========================================
+        function getSeverityBg(s) {
+            return { 'CRITICAL': 'red', 'HIGH': 'orange', 'MEDIUM': 'yellow', 'LOW': 'green' }[s] || 'secondary';
+        }
+        function getStatusBg(s) {
+            return { 'NEW': 'secondary', 'SENT': 'blue', 'REOPENED': 'red', 'ACKNOWLEDGED': 'green', 'FALSE_POSITIVE': 'dark' }[s] || 'secondary';
+        }
+        function getSourceIcon(s) {
+            return { 'mysql': 'database', 's3': 'cloud', 'postgresql': 'database', 'fs': 'folder' }[s] || 'help';
+        }
+        function formatDate(d) {
+            if (!d) return '-';
+            return new Date(d).toLocaleDateString('es-ES', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+
+        // ==========================================
+        // INIT
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadDashboard(); });
+        setInterval(loadDashboard, 30000);
+    </script>
+</body>
+</html>
