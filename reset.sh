@@ -79,7 +79,7 @@ except: pass
                 DEL_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
                     -X DELETE \
                     -H "Authorization: Bearer $THEHIVE_API_KEY" \
-                    "$THEHIVE_URL/api/v1/case/$CASE_ID/force" 2>/dev/null)
+                    "$THEHIVE_URL/api/v1/case/$CASE_ID?force=true" 2>/dev/null)
                 if [ "$DEL_CODE" = "200" ] || [ "$DEL_CODE" = "204" ]; then
                     CASES_DELETED=$((CASES_DELETED + 1))
                 fi
