@@ -39,45 +39,37 @@ interface ScannerButtonProps {
 // Extrae el paso actual de los logs de forma limpia
 function getCurrentStep(logs: string[]): string {
   if (logs.length === 0) return "Iniciando escaneo...";
-  
+
   // Buscar el último log significativo (de atrás hacia adelante)
   for (let i = logs.length - 1; i >= 0; i--) {
     const line = logs[i].trim();
     if (!line) continue;
-    
+
     // Skip líneas decorativas y separadores
-    if (line.startsWith("=") || line.startsWith("🦅") || line.startsWith("📈") || line.startsWith("📋")) continue;
-    if (line.startsWith("---")) continue;
-    
+    if (line.startsWith("=") || line.startsWith("---")) continue;
+
+    // Progreso de creación de casos en TheHive: "[thehive] Caso 3/5"
+    const caseProgress = line.match(/\[thehive\] Caso (\d+)\/(\d+)/);
+    if (caseProgress) {
+      return `Creando casos en TheHive... ${caseProgress[1]}/${caseProgress[2]}`;
+    }
+
+    // Inicio de creación de casos
+    if (line.includes("[thehive] Creando")) return "Creando casos en TheHive...";
+
     // Mapeo de patrones a mensajes limpios
-    if (line.includes("🔍 Escaneando")) return "Escaneando fuentes de datos...";
-    if (line.includes("completado") && line.includes("✅")) return "Analizando resultados...";
+    if (line.includes("Escaneando") && (line.includes("mysql") || line.includes("s3") || line.includes("🔍"))) {
+      return "Escaneando fuentes de datos...";
+    }
+    if (line.includes("completado") && !line.includes("Escaneo completado")) return "Analizando resultados...";
+    if (line.includes("Resultados consolidados")) return "Analizando hallazgos...";
     if (line.includes("Procesando con sistema")) return "Procesando hallazgos...";
     if (line.includes("Base de datos inicializada")) return "Guardando resultados...";
     if (line.includes("Sincronizando estados")) return "Sincronizando con TheHive...";
-    if (line.includes("Enviando alertas")) return "Enviando notificaciones...";
+    if (line.includes("Enviando notificaciones")) return "Enviando notificaciones...";
     if (line.includes("Escaneo completado")) return "Finalizando...";
-    if (line.includes("Resultados consolidados")) return "Analizando hallazgos...";
-    
-    // Capturar líneas con emojis de progreso
-    const emojiMatch = line.match(/^[🔍✅❌📊🔄📋⏳⚠️🔄🔴🟠🟡🟢]+\s*(.+)/);
-    if (emojiMatch) {
-      const clean = emojiMatch[1].trim();
-      if (clean.length > 3 && clean.length < 60 && !clean.startsWith("-")) {
-        return clean;
-      }
-    }
-    
-    // Si la línea tiene contenido útil (no es solo decoración)
-    if (line.length > 5 && line.length < 60 && 
-        !line.startsWith("[") && 
-        !line.match(/^(INFO|DEBUG|ERROR|WARN)/i) &&
-        !line.includes("Traceback") &&
-        !line.includes("File \"/")) {
-      return line;
-    }
   }
-  
+
   return "Procesando...";
 }
 

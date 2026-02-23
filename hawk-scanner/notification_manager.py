@@ -270,12 +270,20 @@ class NotificationManager:
         if not new_alerts:
             return 0
 
+        # Filtrar alertas que aplican por severidad
+        eligible = [a for a in new_alerts
+                    if not severity_filter or a['finding'].get('severity') in severity_filter]
+
+        total = len(eligible)
+        if total == 0:
+            print("[thehive] No se crearon casos nuevos")
+            return 0
+
+        print(f"[thehive] Creando {total} casos en TheHive...")
+
         cases_created = 0
-        for alert in new_alerts:
+        for i, alert in enumerate(eligible, 1):
             finding = alert['finding']
-            # Filtrar por severidad individual
-            if severity_filter and finding.get('severity') not in severity_filter:
-                continue
             is_reopen = alert.get('is_reopen', False)
             alert_hash = alert['alert_hash']
 
@@ -283,5 +291,6 @@ class NotificationManager:
             if case_id and alert_mgr:
                 alert_mgr.update_thehive_case(alert_hash, case_id, 'New')
                 cases_created += 1
+            print(f"[thehive] Caso {i}/{total}")
 
         return cases_created
