@@ -39,6 +39,7 @@ services:
   cassandra:
     image: cassandra:4.1
     container_name: cassandra
+    profiles: ["thehive"]
     environment:
       - MAX_HEAP_SIZE=1G
       - HEAP_NEWSIZE=256M
@@ -57,6 +58,7 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:7.17.9
     container_name: elasticsearch
+    profiles: ["thehive"]
     environment:
       - discovery.type=single-node
       - xpack.security.enabled=false
@@ -75,8 +77,9 @@ services:
 
   thehive:
     image: strangebee/thehive:5.0
-    platform: linux/amd64   
+    platform: linux/amd64
     container_name: thehive
+    profiles: ["thehive"]
     depends_on:
       cassandra:
         condition: service_healthy
@@ -108,8 +111,6 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
-      thehive:
-        condition: service_started
     environment:
       - AWS_ACCESS_KEY_ID=test
       - AWS_SECRET_ACCESS_KEY=test
@@ -118,6 +119,7 @@ services:
       - PYTHONIOENCODING=utf-8
       - LANG=C.UTF-8
       - LC_ALL=C.UTF-8
+      - THEHIVE_ENABLED=${THEHIVE_ENABLED:-false}
     volumes:
       #- ./alerts:/app/alerts
       - ./hawk-scanner/connection.yml:/app/connection.yml
@@ -142,8 +144,9 @@ services:
       - FINGERPRINT_PATH=/app/config/fingerprint.yml
       - CONNECTION_PATH=/app/config/connection.yml
       - FLASK_DEBUG=false
+      - THEHIVE_ENABLED=${THEHIVE_ENABLED:-false}
       - THEHIVE_URL=http://thehive:9000
-      - THEHIVE_API_KEY=FEdjJZ0rxWGZoXsIPOAdVmuOivmgo3h9
+      - THEHIVE_API_KEY=${THEHIVE_API_KEY:-}
     volumes:
       # Compartir la base de datos SQLite del scanner
       - ./hawk-scanner/data:/app/data

@@ -76,10 +76,15 @@ class AlertManager:
             if existing:
                 alert_id, current_count, thehive_status, reopen_count = existing
 
-                # 🔥 NUEVA LÓGICA: Si fue resuelto y aparece de nuevo → RE-ABRIR
-                resolved_states = ['TruePositive', 'Resolved', 'Closed']
+                # Verificar status interno para re-open sin TheHive
+                c.execute('SELECT status FROM alerts WHERE alert_hash = ?', (alert_hash,))
+                internal_status = c.fetchone()[0]
 
-                if thehive_status in resolved_states:
+                # Re-abrir si fue resuelto en TheHive O marcado localmente como cerrado
+                resolved_states = ['TruePositive', 'Resolved', 'Closed']
+                local_resolved = internal_status in ('ACKNOWLEDGED', 'FALSE_POSITIVE')
+
+                if thehive_status in resolved_states or local_resolved:
                     # Ya fue resuelto pero vuelve a aparecer → RE-OCURRENCIA
                     print(f"   🔄 Re-ocurrencia detectada: {finding.get('pattern_name')}")
 

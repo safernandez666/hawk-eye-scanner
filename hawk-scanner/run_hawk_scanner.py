@@ -4,11 +4,13 @@ import subprocess
 import json
 import os
 import sys
+import yaml
+import re as regex_module
 from datetime import datetime
 from collections import Counter
 from severity_classifier import reclassify_findings, get_critical_findings
 from alert_manager import AlertManager
-from thehive_integration import TheHiveIntegration
+from notification_manager import NotificationManager
 
 ALERTS_DIR = "/app/alerts"
 RESULTS_DIR = "/app/alerts"
@@ -16,13 +18,56 @@ RESULTS_DIR = "/app/alerts"
 os.makedirs(ALERTS_DIR, exist_ok=True)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
+def prepare_fingerprint_for_scanner(input_file="fingerprint.yml", output_file="/tmp/fingerprint_compat.yml"):
+    """Convierte el fingerprint con metadata a formato compatible con hawk_scanner"""
+    with open(input_file, 'r') as f:
+        data = yaml.safe_load(f)
+
+    compatible_patterns = {}
+    for name, config in data.items():
+        if isinstance(config, dict) and 'regex' in config:
+            compatible_patterns[name] = config['regex']
+        elif isinstance(config, str):
+            compatible_patterns[name] = config
+
+    with open(output_file, 'w') as f:
+        yaml.dump(compatible_patterns, f, default_flow_style=False, allow_unicode=True)
+
+    return output_file
+
+
+def prepare_connection_for_scanner(input_file="connection.yml", output_file="/tmp/connection_compat.yml"):
+    """Extrae solo las fuentes de connection.yml en formato compatible con hawk_scanner"""
+    with open(input_file, 'r') as f:
+        data = yaml.safe_load(f)
+
+    # hawk_scanner espera un dict con key 'sources' que contiene mysql:, s3:, etc.
+    sources = data.get('sources', {})
+    if not sources:
+        # Si no hay key 'sources', asumir que ya esta en formato plano
+        sources = {k: v for k, v in data.items() if k not in ('notify',)}
+
+    # Guardar con wrapper 'sources' como espera hawk_scanner
+    output_data = {'sources': sources}
+    
+    with open(output_file, 'w') as f:
+        yaml.dump(output_data, f, default_flow_style=False, allow_unicode=True)
+
+    return output_file
+
+
 def run_scan(source_type, output_file):
     print(f"🔍 Escaneando {source_type}...")
+
+    # Preparar archivos compatibles con hawk_scanner
+    compat_fingerprint = prepare_fingerprint_for_scanner()
+    compat_connection = prepare_connection_for_scanner()
+
     cmd = [
         "hawk_scanner",
         source_type,
-        "--connection", "connection.yml",
-        "--fingerprint", "fingerprint.yml",
+        "--connection", compat_connection,
+        "--fingerprint", compat_fingerprint,
         "--json", output_file
     ]
 
@@ -275,62 +320,42 @@ if __name__ == "__main__":
         if stats['critical_pending'] > 0:
             print(f"\n   ⚠️  {stats['critical_pending']} alertas CRÍTICAS pendientes")
 
-        # 3. INTEGRACIÓN CON THEHIVE
-        thehive = TheHiveIntegration()
-        thehive_available = False
-        cases_created = 0
-
-        if thehive.test_connection():
-            thehive_available = True
-            
-            # 3a. Sincronizar estados
-            print(f"\n{'='*70}")
-            print("🔄 Sincronizando estados con TheHive...")
-            print(f"{'='*70}")
-
-            synced = thehive.sync_cases_status(alert_mgr)
-
-            if synced['open'] > 0 or synced['resolved'] > 0:
-                print(f"\n📊 Estado actual:")
-                print(f"   • Abiertos/En progreso: {synced['open']}")
-                print(f"   • Resueltos/Cerrados: {synced['resolved']}")
-                if synced['error'] > 0:
-                    print(f"   • Errores: {synced['error']}")
-
-            # 3b. Crear nuevos casos (UN SOLO CASO POR UBICACIÓN)
-            print(f"\n{'='*70}")
-            print("🎯 Enviando alertas a TheHive...")
-            print(f"{'='*70}")
-
-            for alert in new_alerts:
-                finding = alert['finding']
-                is_reopen = alert.get('is_reopen', False)
-                case_id = thehive.create_case(finding, alert['alert_hash'], is_reopen)
-                if case_id:
-                    alert_mgr.update_thehive_case(
-                        alert['alert_hash'],
-                        case_id,
-                        'New'
-                    )
-                    cases_created += 1
-
-            if cases_created > 0:
-                print(f"\n📋 Casos creados: {cases_created}")
-            else:
-                print(f"\n📋 No se crearon casos nuevos")
-            
-            # Recalcular stats después de sincronizar
-            stats = alert_mgr.get_stats()
-        else:
-            print(f"\n{'='*70}")
-            print("⚠️  TheHive no está disponible")
-            print(f"{'='*70}")
-
-        # 4. MOSTRAR HALLAZGOS
+        # 3. MOSTRAR HALLAZGOS
         display_findings(results)
 
+        # Preparar datos para notificaciones y resumen
+        valid_results = [r for r in results if isinstance(r, dict) and 'pattern_name' in r]
+        summary_data = {
+            "scan_date": datetime.now().isoformat(),
+            "total_findings": len(valid_results),
+            "by_severity": dict(Counter([r.get('severity', 'unknown') for r in valid_results])),
+            "by_pattern": dict(Counter([r.get('pattern_name', 'unknown') for r in valid_results])),
+            "by_source": dict(Counter([r.get('data_source', 'unknown') for r in valid_results])),
+        }
+
+        # 4. NOTIFICACIONES (incluye TheHive si esta habilitado)
+        print(f"\n{'='*70}")
+        print("📨 Enviando notificaciones...")
+        print(f"{'='*70}")
+        notifier = NotificationManager()
+        notif_results = notifier.send_all(summary_data, stats, new_alerts, alert_mgr=alert_mgr)
+        if notif_results:
+            for ch, res in notif_results.items():
+                ch_status = res.get('status', 'unknown')
+                print(f"   • {ch}: {ch_status}")
+        else:
+            print("   No hay canales habilitados")
+
+        # Refrescar stats despues de notificaciones (TheHive puede haber actualizado casos)
+        stats = alert_mgr.get_stats()
+
+        # Derivar info de TheHive para el resumen
+        thehive_result = notif_results.get('thehive', {})
+        thehive_available = thehive_result.get('status') == 'sent'
+        cases_created = thehive_result.get('cases_created', 0)
+
         # 5. RESUMEN FINAL
-        generate_final_summary(results, summary_output, stats, cases_created, thehive_available)
+        summary = generate_final_summary(results, summary_output, stats, cases_created, thehive_available)
 
         with open(latest_output, 'w') as f:
             json.dump(results, f, indent=2)

@@ -29,8 +29,46 @@ FINGERPRINT_PATH = os.environ.get('FINGERPRINT_PATH', '/app/config/fingerprint.y
 CONNECTION_PATH = os.environ.get('CONNECTION_PATH', '/app/config/connection.yml')
 
 # TheHive config
-THEHIVE_URL = os.environ.get('THEHIVE_URL', 'http://thehive:9000')
-THEHIVE_API_KEY = os.environ.get('THEHIVE_API_KEY', '')
+_THEHIVE_ENABLED_ENV = os.environ.get('THEHIVE_ENABLED', '').lower()
+
+
+def _is_thehive_enabled():
+    """Verifica si TheHive esta habilitado: connection.yml tiene prioridad sobre env var"""
+    try:
+        config = read_yaml(CONNECTION_PATH)
+        channel_enabled = config.get('notify', {}).get('channels', {}).get('thehive', {}).get('enabled')
+        # Si está definido en connection.yml, usar ese valor
+        if channel_enabled is not None:
+            return bool(channel_enabled)
+    except Exception:
+        pass
+    
+    # Fallback a env var si no está definido en connection.yml
+    if _THEHIVE_ENABLED_ENV == 'true':
+        return True
+    if _THEHIVE_ENABLED_ENV == 'false':
+        return False
+    
+    return False
+
+
+def _get_thehive_config():
+    """Lee URL y API key de TheHive: primero env vars, luego connection.yml"""
+    url = os.environ.get('THEHIVE_URL', '')
+    api_key = os.environ.get('THEHIVE_API_KEY', '')
+    if not url or not api_key:
+        try:
+            config = read_yaml(CONNECTION_PATH)
+            thehive_cfg = config.get('notify', {}).get('channels', {}).get('thehive', {})
+            if not url:
+                url = thehive_cfg.get('url', 'http://thehive:9000')
+            if not api_key:
+                api_key = thehive_cfg.get('api_key', '')
+        except Exception:
+            pass
+    if not url:
+        url = 'http://thehive:9000'
+    return url, api_key
 
 # Mapa de severidad por patrón (replica severity_classifier.py)
 SEVERITY_MAP = {
@@ -362,18 +400,32 @@ def get_config_patterns():
     try:
         patterns = read_yaml(FINGERPRINT_PATH)
         result = []
-        for name, regex in patterns.items():
-            result.append({
-                'name': name,
-                'regex': regex,
-                'severity': SEVERITY_MAP.get(name, 'MEDIUM')
-            })
+        for name, config in patterns.items():
+            # Soportar formato nuevo (dict) y viejo (string)
+            if isinstance(config, dict):
+                result.append({
+                    'name': name,
+                    'regex': config.get('regex', ''),
+                    'category': config.get('category', 'OTHER'),
+                    'severity': config.get('severity', 'MEDIUM')
+                })
+            else:
+                # Formato viejo (solo regex como string)
+                result.append({
+                    'name': name,
+                    'regex': config,
+                    'category': 'OTHER',
+                    'severity': SEVERITY_MAP.get(name, 'MEDIUM')
+                })
         return jsonify({'patterns': result, 'total': len(result)})
     except FileNotFoundError:
         return jsonify({'patterns': [], 'total': 0})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+# Categorías válidas
+VALID_CATEGORIES = ['PCI', 'CREDENTIALS', 'PII', 'INFRA', 'CRYPTO', 'OTHER']
 
 @app.route('/api/config/patterns', methods=['POST'])
 def add_config_pattern():
@@ -382,27 +434,50 @@ def add_config_pattern():
         data = request.get_json()
         name = (data.get('name') or '').strip()
         regex = (data.get('regex') or '').strip()
+        severity = (data.get('severity') or 'MEDIUM').strip()
+        category = (data.get('category') or 'OTHER').strip()
 
         if not name or not regex:
             return jsonify({'error': 'name y regex son requeridos'}), 400
+
+        # Validar severidad
+        if severity not in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+            severity = 'MEDIUM'
+        
+        # Validar categoría
+        if category not in VALID_CATEGORIES:
+            category = 'OTHER'
 
         patterns = read_yaml(FINGERPRINT_PATH)
         if name in patterns:
             return jsonify({'error': f'El patrón "{name}" ya existe'}), 409
 
-        patterns[name] = regex
+        # Guardar en formato nuevo (dict con regex, category, severity)
+        patterns[name] = {
+            'regex': regex,
+            'category': category,
+            'severity': severity
+        }
         write_yaml(FINGERPRINT_PATH, patterns)
-        return jsonify({'message': f'Patrón "{name}" agregado', 'severity': SEVERITY_MAP.get(name, 'MEDIUM')}), 201
+        
+        return jsonify({
+            'message': f'Patrón "{name}" agregado', 
+            'severity': severity,
+            'category': category
+        }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/config/patterns/<name>', methods=['PUT'])
 def edit_config_pattern(name):
-    """Edita la regex de un patrón en fingerprint.yml"""
+    """Edita la regex, categoría y severidad de un patrón en fingerprint.yml"""
     try:
         data = request.get_json()
         regex = (data.get('regex') or '').strip()
+        severity = (data.get('severity') or '').strip()
+        category = (data.get('category') or '').strip()
+        
         if not regex:
             return jsonify({'error': 'regex es requerido'}), 400
 
@@ -410,9 +485,32 @@ def edit_config_pattern(name):
         if name not in patterns:
             return jsonify({'error': f'Patrón "{name}" no encontrado'}), 404
 
-        patterns[name] = regex
+        # Obtener configuración actual
+        current = patterns[name]
+        if isinstance(current, dict):
+            current_severity = current.get('severity', 'MEDIUM')
+            current_category = current.get('category', 'OTHER')
+        else:
+            current_severity = SEVERITY_MAP.get(name, 'MEDIUM')
+            current_category = 'OTHER'
+
+        # Validar y actualizar
+        final_severity = severity if severity in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] else current_severity
+        final_category = category if category in VALID_CATEGORIES else current_category
+
+        # Guardar en formato nuevo
+        patterns[name] = {
+            'regex': regex,
+            'category': final_category,
+            'severity': final_severity
+        }
         write_yaml(FINGERPRINT_PATH, patterns)
-        return jsonify({'message': f'Patrón "{name}" actualizado'})
+        
+        return jsonify({
+            'message': f'Patrón "{name}" actualizado',
+            'severity': final_severity,
+            'category': final_category
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
@@ -512,18 +610,32 @@ def delete_config_source(source_type, name):
 
 
 # ==========================================
+# FEATURE FLAGS
+# ==========================================
+
+@app.route('/api/config/features', methods=['GET'])
+def get_features():
+    """Retorna feature flags para el frontend"""
+    return jsonify({'thehive_enabled': _is_thehive_enabled()})
+
+
+# ==========================================
 # THEHIVE PROXY ENDPOINTS
 # ==========================================
 
 def thehive_headers():
-    return {'Authorization': f'Bearer {THEHIVE_API_KEY}', 'Content-Type': 'application/json'}
+    _, api_key = _get_thehive_config()
+    return {'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'}
 
 
 @app.route('/api/thehive/status', methods=['GET'])
 def thehive_status():
     """Verifica conectividad con TheHive"""
+    if not _is_thehive_enabled():
+        return jsonify({'status': 'disabled'})
     try:
-        r = requests.get(f'{THEHIVE_URL}/api/v1/status', headers=thehive_headers(), timeout=5)
+        url, _ = _get_thehive_config()
+        r = requests.get(f'{url}/api/v1/status', headers=thehive_headers(), timeout=5)
         return jsonify({'status': 'connected', 'code': r.status_code})
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)})
@@ -532,9 +644,12 @@ def thehive_status():
 @app.route('/api/thehive/cases', methods=['GET'])
 def thehive_cases():
     """Lista casos de TheHive"""
+    if not _is_thehive_enabled():
+        return jsonify({'cases': []})
     try:
+        url, _ = _get_thehive_config()
         payload = {"query": [{"_name": "listCase"}]}
-        r = requests.post(f'{THEHIVE_URL}/api/v1/query', headers=thehive_headers(), json=payload, timeout=10)
+        r = requests.post(f'{url}/api/v1/query', headers=thehive_headers(), json=payload, timeout=10)
         if r.status_code != 200:
             return jsonify({'error': f'TheHive responded {r.status_code}', 'detail': r.text}), 502
         return jsonify({'cases': r.json()})
@@ -545,8 +660,11 @@ def thehive_cases():
 @app.route('/api/thehive/cases/<case_id>', methods=['GET'])
 def thehive_case_detail(case_id):
     """Detalle de un caso de TheHive"""
+    if not _is_thehive_enabled():
+        return jsonify({'error': 'TheHive is disabled'}), 404
     try:
-        r = requests.get(f'{THEHIVE_URL}/api/v1/case/{case_id}', headers=thehive_headers(), timeout=10)
+        url, _ = _get_thehive_config()
+        r = requests.get(f'{url}/api/v1/case/{case_id}', headers=thehive_headers(), timeout=10)
         if r.status_code != 200:
             return jsonify({'error': f'TheHive responded {r.status_code}'}), 502
         return jsonify(r.json())
@@ -557,6 +675,8 @@ def thehive_case_detail(case_id):
 @app.route('/api/thehive/sync', methods=['POST'])
 def thehive_sync():
     """Envia todas las alertas sin caso a TheHive y actualiza la DB"""
+    if not _is_thehive_enabled():
+        return jsonify({'created': 0, 'message': 'TheHive disabled'})
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -571,6 +691,7 @@ def thehive_sync():
             conn.close()
             return jsonify({'message': 'No hay alertas pendientes de enviar', 'created': 0})
 
+        url, _ = _get_thehive_config()
         headers = thehive_headers()
         created = 0
         errors = 0
@@ -602,7 +723,7 @@ def thehive_sync():
 
             try:
                 r = requests.post(
-                    f'{THEHIVE_URL}/api/v1/case',
+                    f'{url}/api/v1/case',
                     headers=headers, json=case_data, timeout=10
                 )
                 if r.status_code in [200, 201]:
@@ -862,6 +983,121 @@ def sources_health():
                 results.append(entry)
 
         return jsonify({'sources': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==========================================
+# NOTIFICATION CONFIG ENDPOINTS
+# ==========================================
+
+@app.route('/api/config/notifications', methods=['GET'])
+def get_notifications_config():
+    """Lista canales de notificacion configurados en connection.yml"""
+    try:
+        config = read_yaml(CONNECTION_PATH)
+        channels = config.get('notify', {}).get('channels', {})
+        return jsonify({'channels': channels})
+    except FileNotFoundError:
+        return jsonify({'channels': {}})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/config/notifications/<channel>', methods=['PUT'])
+def update_notification_channel(channel):
+    """Actualiza la configuracion de un canal de notificacion"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Body JSON requerido'}), 400
+
+        valid_channels = ['thehive', 'smtp', 'slack', 'teams', 'webhook']
+        if channel not in valid_channels:
+            return jsonify({'error': f'Canal invalido. Validos: {valid_channels}'}), 400
+
+        config = read_yaml(CONNECTION_PATH)
+        if 'notify' not in config:
+            config['notify'] = {}
+        if 'channels' not in config['notify']:
+            config['notify']['channels'] = {}
+
+        config['notify']['channels'][channel] = data
+        write_yaml(CONNECTION_PATH, config)
+        return jsonify({'message': f'Canal "{channel}" actualizado'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/config/notifications/<channel>/test', methods=['POST'])
+def test_notification_channel(channel):
+    """Envia una notificacion de prueba por el canal indicado"""
+    try:
+        valid_channels = ['thehive', 'smtp', 'slack', 'teams', 'webhook']
+        if channel not in valid_channels:
+            return jsonify({'error': f'Canal invalido. Validos: {valid_channels}'}), 400
+
+        # Leer config actual o usar body del request
+        data = request.get_json()
+        if data:
+            channel_config = data
+        else:
+            config = read_yaml(CONNECTION_PATH)
+            channel_config = config.get('notify', {}).get('channels', {}).get(channel, {})
+
+        if not channel_config:
+            return jsonify({'error': f'Canal "{channel}" no configurado'}), 404
+
+        from notification_manager import NotificationManager
+        nm = NotificationManager(config_path=None)
+        result = nm.send_test(channel, channel_config)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/validate-regex', methods=['POST'])
+def validate_regex():
+    """Valida una expresión regular contra texto de prueba"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Body JSON requerido'}), 400
+        
+        regex = data.get('regex', '').strip()
+        test_text = data.get('test_text', '')
+        
+        if not regex:
+            return jsonify({'error': 'Regex es requerido'}), 400
+        
+        import re
+        
+        # Intentar compilar la regex
+        try:
+            pattern = re.compile(regex)
+        except re.error as e:
+            return jsonify({
+                'valid': False,
+                'error': f'Regex inválida: {str(e)}',
+                'matches': []
+            })
+        
+        # Buscar matches
+        matches = []
+        for match in pattern.finditer(test_text):
+            matches.append({
+                'start': match.start(),
+                'end': match.end(),
+                'value': match.group(),
+                'groups': match.groups()
+            })
+        
+        return jsonify({
+            'valid': True,
+            'matches': matches,
+            'match_count': len(matches)
+        })
+        
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -1,6 +1,52 @@
 notify:
   redacted: true
   suppress_duplicates: true
+  channels:
+    smtp:
+      enabled: false
+      host: ''
+      port: 587
+      use_tls: true
+      username: ''
+      password: ''
+      from_address: ''
+      to_addresses: ''
+      severity_filter:
+      - CRITICAL
+      - HIGH
+    slack:
+      enabled: false
+      webhook_url: ''
+      severity_filter:
+      - CRITICAL
+      - HIGH
+      - MEDIUM
+    teams:
+      enabled: false
+      webhook_url: ''
+      severity_filter:
+      - CRITICAL
+      - HIGH
+      - MEDIUM
+    webhook:
+      enabled: false
+      url: ''
+      method: POST
+      headers:
+        Content-Type: application/json
+      severity_filter:
+      - CRITICAL
+      - HIGH
+      - MEDIUM
+      - LOW
+    thehive:
+      enabled: false
+      severity_filter:
+      - CRITICAL
+      - HIGH
+      url: http://thehive:9000
+      api_key: ''
+      create_cases: true
 sources:
   mysql:
     poc_mysql:
@@ -9,8 +55,6 @@ sources:
       user: root
       password: rootpassword
       database: pocdb
-      limit_start: 0
-      limit_end: 10000
   s3:
     poc-bucket:
       access_key: test

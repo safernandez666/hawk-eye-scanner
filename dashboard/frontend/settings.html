@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Configuracion - Poirot DSPM</title>
+
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/css/tabler.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+
+    <style>
+        @media (min-width: 992px) {
+            .navbar-vertical { width: 200px; }
+            .navbar-vertical ~ .page-wrapper { margin-left: 200px; }
+            .navbar-vertical .nav-link-title { font-size: .8125rem; }
+            .navbar-vertical .nav-link-icon { width: 1.25rem; height: 1.25rem; }
+            .navbar-vertical .navbar-brand { font-size: 1.25rem; }
+        }
+        .channel-card .form-label { font-size: .75rem; margin-bottom: .15rem; }
+        .channel-card .form-control-sm { font-size: .8125rem; }
+        .severity-checks label { font-size: .8125rem; }
+    </style>
+</head>
+<body class="page">
+    <div class="page">
+        <aside class="navbar navbar-vertical navbar-expand-lg" data-bs-theme="dark">
+            <div class="container-fluid">
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
+                <h1 class="navbar-brand navbar-brand-autodark"><a href="/"><i class="ti ti-moustache me-2" style="font-size:1.5rem;"></i>Poirot</a></h1>
+                <div class="collapse navbar-collapse" id="sidebar-menu">
+                    <ul class="navbar-nav pt-lg-3">
+                        <li class="nav-item"><a class="nav-link" href="/"><span class="nav-link-icon"><i class="ti ti-dashboard"></i></span><span class="nav-link-title">Dashboard</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/alerts.html"><span class="nav-link-icon"><i class="ti ti-alert-triangle"></i></span><span class="nav-link-title">Alertas</span><span class="badge bg-red badge-sm ms-auto" id="sidebar-critical-count" style="display:none;">0</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/patterns.html"><span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span><span class="nav-link-title">Patrones</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/timeline.html"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Timeline</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/sources.html"><span class="nav-link-icon"><i class="ti ti-database"></i></span><span class="nav-link-title">Fuentes</span></a></li>
+                        <li class="nav-item" id="nav-casos"><a class="nav-link" href="/cases.html"><span class="nav-link-icon"><i class="ti ti-briefcase"></i></span><span class="nav-link-title">Casos</span><span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span></a></li>
+                        <li class="nav-item"><a class="nav-link active" href="/settings.html"><span class="nav-link-icon"><i class="ti ti-settings"></i></span><span class="nav-link-title">Configuracion</span></a></li>
+                    </ul>
+                </div>
+            </div>
+        </aside>
+
+        <div class="page-wrapper">
+            <header class="navbar navbar-expand-md d-print-none" style="min-height:auto; padding:.4rem 0;">
+                <div class="container-xl">
+                    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#sidebar-menu"><span class="navbar-toggler-icon"></span></button>
+                    <div class="navbar-nav flex-row order-md-last">
+                        <div class="nav-item dropdown me-2">
+                            <a href="#" class="nav-link px-0" data-bs-toggle="dropdown"><i class="ti ti-moon" id="theme-icon" style="font-size:1rem;"></i></a>
+                            <div class="dropdown-menu dropdown-menu-end">
+                                <a class="dropdown-item" href="#" onclick="setTheme('light')"><i class="ti ti-sun me-2"></i>Light</a>
+                                <a class="dropdown-item" href="#" onclick="setTheme('dark')"><i class="ti ti-moon me-2"></i>Dark</a>
+                            </div>
+                        </div>
+                        <div class="nav-item"><a href="#" class="nav-link px-0" style="font-size:.8125rem;"><i class="ti ti-user me-1"></i>Admin</a></div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="page-header d-print-none" style="padding:.5rem 0;">
+                <div class="container-xl">
+                    <div class="d-flex align-items-center">
+                        <div>
+                            <div class="page-pretitle" style="font-size:.625rem;">Poirot DSPM</div>
+                            <h2 class="page-title" style="font-size:1.125rem;">Configuracion de Notificaciones</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="page-body" style="padding-top:.5rem;">
+                <div class="container-xl">
+                    <div class="row row-cards" id="channels-container">
+                        <div class="col-12 text-center text-muted py-3">Cargando configuracion...</div>
+                    </div>
+                </div>
+            </div>
+
+            <footer class="footer footer-transparent d-print-none" style="padding:.5rem 0; font-size:.75rem;">
+                <div class="container-xl"><strong>Poirot DSPM</strong> &copy; 2025</div>
+            </footer>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tabler/core@1.0.0-beta20/dist/js/tabler.min.js"></script>
+    <script>
+        const API_URL = '/api';
+        const THEME_KEY = 'poirot-theme';
+        const SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'];
+        const SEV_COLORS = { CRITICAL: 'red', HIGH: 'orange', MEDIUM: 'yellow', LOW: 'green' };
+
+        let channelsData = {};
+
+        function initTheme() {
+            const saved = localStorage.getItem(THEME_KEY) || 'light';
+            document.documentElement.setAttribute('data-bs-theme', saved);
+            document.getElementById('theme-icon').className = saved === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+        }
+        function setTheme(theme) {
+            document.documentElement.setAttribute('data-bs-theme', theme);
+            localStorage.setItem(THEME_KEY, theme);
+            document.getElementById('theme-icon').className = theme === 'dark' ? 'ti ti-sun' : 'ti ti-moon';
+        }
+
+        const CHANNEL_META = {
+            smtp: { label: 'SMTP (Email)', icon: 'mail', fields: [
+                { name: 'host', label: 'Host SMTP', type: 'text', placeholder: 'smtp.gmail.com' },
+                { name: 'port', label: 'Puerto', type: 'number', placeholder: '587' },
+                { name: 'username', label: 'Usuario', type: 'text', placeholder: 'user@example.com' },
+                { name: 'password', label: 'Password', type: 'password', placeholder: '********' },
+                { name: 'from_address', label: 'Remitente', type: 'text', placeholder: 'alerts@example.com' },
+                { name: 'to_addresses', label: 'Destinatarios', type: 'text', placeholder: 'admin@example.com, security@example.com' },
+            ]},
+            slack: { label: 'Slack', icon: 'brand-slack', fields: [
+                { name: 'webhook_url', label: 'Webhook URL', type: 'text', placeholder: 'https://hooks.slack.com/services/...' },
+            ]},
+            teams: { label: 'Microsoft Teams', icon: 'brand-teams', fields: [
+                { name: 'webhook_url', label: 'Webhook URL', type: 'text', placeholder: 'https://outlook.office.com/webhook/...' },
+            ]},
+            webhook: { label: 'Webhook Generico', icon: 'webhook', fields: [
+                { name: 'url', label: 'URL', type: 'text', placeholder: 'https://api.example.com/alerts' },
+                { name: 'method', label: 'Metodo HTTP', type: 'text', placeholder: 'POST' },
+            ]},
+        };
+
+        function escapeHtml(str) {
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function renderChannels() {
+            const container = document.getElementById('channels-container');
+            container.innerHTML = Object.entries(CHANNEL_META).map(([name, meta]) => {
+                const ch = channelsData[name] || { enabled: false, severity_filter: [] };
+                const sevFilter = ch.severity_filter || [];
+                const enabledChecked = ch.enabled ? 'checked' : '';
+
+                const fieldsHtml = meta.fields.map(f => {
+                    const val = ch[f.name] !== undefined ? ch[f.name] : '';
+                    return `
+                        <div class="col-md-6 mb-2">
+                            <label class="form-label">${f.label}</label>
+                            <input type="${f.type}" class="form-control form-control-sm" id="${name}-${f.name}" value="${escapeHtml(String(val))}" placeholder="${f.placeholder}">
+                        </div>
+                    `;
+                }).join('');
+
+                const sevHtml = SEVERITIES.map(s => {
+                    const checked = sevFilter.includes(s) ? 'checked' : '';
+                    return `
+                        <label class="form-check form-check-inline">
+                            <input type="checkbox" class="form-check-input" id="${name}-sev-${s}" ${checked}>
+                            <span class="form-check-label"><span class="badge bg-${SEV_COLORS[s]}">${s}</span></span>
+                        </label>
+                    `;
+                }).join('');
+
+                const tlsHtml = name === 'smtp' ? `
+                    <div class="col-md-6 mb-2">
+                        <label class="form-check">
+                            <input type="checkbox" class="form-check-input" id="${name}-use_tls" ${ch.use_tls ? 'checked' : ''}>
+                            <span class="form-check-label">Usar TLS</span>
+                        </label>
+                    </div>
+                ` : '';
+
+                return `
+                    <div class="col-md-6">
+                        <div class="card channel-card mb-3">
+                            <div class="card-header" style="padding:.5rem .75rem;">
+                                <h3 class="card-title" style="font-size:.8125rem;">
+                                    <i class="ti ti-${meta.icon} me-1"></i>${meta.label}
+                                </h3>
+                                <div class="card-actions">
+                                    <label class="form-check form-switch m-0">
+                                        <input type="checkbox" class="form-check-input" id="${name}-enabled" ${enabledChecked}>
+                                        <span class="form-check-label" style="font-size:.75rem;">${ch.enabled ? 'Habilitado' : 'Deshabilitado'}</span>
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="card-body py-2 px-3">
+                                <div class="row">${fieldsHtml}${tlsHtml}</div>
+                                <div class="mb-2 severity-checks">
+                                    <label class="form-label">Filtro de severidad</label>
+                                    <div>${sevHtml}</div>
+                                </div>
+                            </div>
+                            <div class="card-footer py-2 px-3">
+                                <button class="btn btn-primary btn-sm me-2" onclick="saveChannel('${name}')">
+                                    <i class="ti ti-device-floppy me-1"></i>Guardar
+                                </button>
+                                <button class="btn btn-outline-secondary btn-sm" onclick="testChannel('${name}')">
+                                    <i class="ti ti-send me-1"></i>Enviar Prueba
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function getChannelFormData(name) {
+            const meta = CHANNEL_META[name];
+            const data = {
+                enabled: document.getElementById(`${name}-enabled`).checked,
+                severity_filter: SEVERITIES.filter(s => document.getElementById(`${name}-sev-${s}`).checked),
+            };
+            meta.fields.forEach(f => {
+                let val = document.getElementById(`${name}-${f.name}`).value;
+                if (f.type === 'number') val = parseInt(val) || 0;
+                data[f.name] = val;
+            });
+            if (name === 'smtp') {
+                data.use_tls = document.getElementById(`${name}-use_tls`).checked;
+            }
+            if (name === 'webhook') {
+                data.headers = { 'Content-Type': 'application/json' };
+            }
+            return data;
+        }
+
+        async function loadNotificationConfig() {
+            try {
+                const res = await fetch(`${API_URL}/config/notifications`);
+                const data = await res.json();
+                channelsData = data.channels || {};
+                renderChannels();
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('channels-container').innerHTML = '<div class="col-12 text-center text-danger py-3">Error al cargar configuracion</div>';
+            }
+        }
+
+        async function saveChannel(name) {
+            const data = getChannelFormData(name);
+            try {
+                const res = await fetch(`${API_URL}/config/notifications/${name}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (!res.ok) { alert(result.error || 'Error al guardar'); return; }
+                channelsData[name] = data;
+                alert(`Canal "${CHANNEL_META[name].label}" guardado`);
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexion');
+            }
+        }
+
+        async function testChannel(name) {
+            const data = getChannelFormData(name);
+            try {
+                const res = await fetch(`${API_URL}/config/notifications/${name}/test`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await res.json();
+                if (result.status === 'sent') {
+                    alert(`Prueba enviada por "${CHANNEL_META[name].label}"`);
+                } else {
+                    alert(`Error: ${result.error || 'Fallo al enviar'}`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error de conexion');
+            }
+        }
+
+        async function loadSidebarBadges() {
+            try {
+                const res = await fetch(`${API_URL}/stats`);
+                const stats = await res.json();
+                const cp = stats.critical_pending || 0;
+                const el = document.getElementById('sidebar-critical-count');
+                if (cp > 0) { el.textContent = cp; el.style.display = 'inline-block'; }
+            } catch (e) {}
+            try {
+                const res = await fetch(`${API_URL}/thehive/cases`);
+                const data = await res.json();
+                const open = (data.cases || []).filter(c => c.status !== 'Resolved' && c.status !== 'Closed').length;
+                const el = document.getElementById('sidebar-cases-count');
+                if (open > 0) { el.textContent = open; el.style.display = 'inline-block'; }
+            } catch (e) {}
+        }
+
+        async function checkFeatures() {
+            try {
+                const res = await fetch(`${API_URL}/config/features`);
+                const data = await res.json();
+                if (!data.thehive_enabled) {
+                    const nav = document.getElementById('nav-casos');
+                    if (nav) nav.style.display = 'none';
+                }
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); checkFeatures(); loadNotificationConfig(); loadSidebarBadges(); });
+    </script>
+</body>
+</html>

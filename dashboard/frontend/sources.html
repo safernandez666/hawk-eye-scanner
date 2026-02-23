@@ -32,7 +32,8 @@
                         <li class="nav-item"><a class="nav-link" href="/patterns.html"><span class="nav-link-icon"><i class="ti ti-fingerprint"></i></span><span class="nav-link-title">Patrones</span></a></li>
                         <li class="nav-item"><a class="nav-link" href="/timeline.html"><span class="nav-link-icon"><i class="ti ti-chart-line"></i></span><span class="nav-link-title">Timeline</span></a></li>
                         <li class="nav-item"><a class="nav-link active" href="/sources.html"><span class="nav-link-icon"><i class="ti ti-database"></i></span><span class="nav-link-title">Fuentes</span></a></li>
-                        <li class="nav-item"><a class="nav-link" href="/cases.html"><span class="nav-link-icon"><i class="ti ti-briefcase"></i></span><span class="nav-link-title">Casos</span><span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span></a></li>
+                        <li class="nav-item" id="nav-casos"><a class="nav-link" href="/cases.html"><span class="nav-link-icon"><i class="ti ti-briefcase"></i></span><span class="nav-link-title">Casos</span><span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span></a></li>
+                        <li class="nav-item"><a class="nav-link" href="/settings.html"><span class="nav-link-icon"><i class="ti ti-settings"></i></span><span class="nav-link-title">Configuracion</span></a></li>
                     </ul>
                 </div>
             </div>
@@ -400,7 +401,18 @@
             } catch (e) {}
         }
 
-        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadConfigSources(); loadSourcesChart(); loadSidebarBadges(); });
+        async function checkFeatures() {
+            try {
+                const res = await fetch(`${API_URL}/config/features`);
+                const data = await res.json();
+                if (!data.thehive_enabled) {
+                    const nav = document.getElementById('nav-casos');
+                    if (nav) nav.style.display = 'none';
+                }
+            } catch (e) {}
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); checkFeatures(); loadConfigSources(); loadSourcesChart(); loadSidebarBadges(); });
     </script>
 </body>
 </html>

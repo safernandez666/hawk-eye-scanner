@@ -77,11 +77,17 @@
                                 <span class="nav-link-title">Fuentes</span>
                             </a>
                         </li>
-                        <li class="nav-item">
+                        <li class="nav-item" id="nav-casos">
                             <a class="nav-link" href="/cases.html">
                                 <span class="nav-link-icon"><i class="ti ti-briefcase"></i></span>
                                 <span class="nav-link-title">Casos</span>
                                 <span class="badge bg-azure badge-sm ms-auto" id="sidebar-cases-count" style="display:none;">0</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="/settings.html">
+                                <span class="nav-link-icon"><i class="ti ti-settings"></i></span>
+                                <span class="nav-link-title">Configuracion</span>
                             </a>
                         </li>
                     </ul>
@@ -198,7 +204,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="col-sm-6 col-lg-3">
+                        <div class="col-sm-6 col-lg-3" id="kpi-thehive">
                             <div class="card stat-card">
                                 <div class="card-body">
                                     <div class="d-flex align-items-center">
@@ -603,9 +609,27 @@
         }
 
         // ==========================================
+        // FEATURE FLAGS
+        // ==========================================
+        async function checkFeatures() {
+            try {
+                const res = await fetch(`${API_URL}/config/features`);
+                const data = await res.json();
+                if (!data.thehive_enabled) {
+                    const nav = document.getElementById('nav-casos');
+                    if (nav) nav.style.display = 'none';
+                    const kpi = document.getElementById('kpi-thehive');
+                    if (kpi) kpi.style.display = 'none';
+                    const status = document.getElementById('status-thehive');
+                    if (status) status.style.display = 'none';
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        // ==========================================
         // INIT
         // ==========================================
-        document.addEventListener('DOMContentLoaded', () => { initTheme(); loadDashboard(); checkStatuses(); });
+        document.addEventListener('DOMContentLoaded', () => { initTheme(); checkFeatures(); loadDashboard(); checkStatuses(); });
         setInterval(loadDashboard, 30000);
     </script>
 </body>

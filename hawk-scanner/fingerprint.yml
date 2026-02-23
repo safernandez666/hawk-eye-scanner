@@ -1,18 +1,99 @@
-Credit Card - Visa: \b4[0-9]{12}(?:[0-9]{3})?\b
-Credit Card - Mastercard: \b5[1-5][0-9]{14}\b
-Credit Card - American Express: \b3[47][0-9]{13}\b
-Credit Card - Discover: \b6(?:011|5[0-9]{2})[0-9]{12}\b
-Social Security Number (SSN): \b\d{3}-\d{2}-\d{4}\b
-Email Address: \b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b
-Phone Number - US: \b(?:\+?1[-.]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b
-Phone Number - International: \b\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b
-AWS Access Key: \b(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}\b
-AWS Secret Key: \b[A-Za-z0-9/+=]{40}\b
-Private Key: '-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----'
-Generic Password: (?i)(password|pwd|passwd)\s*[=:]\s*\S{4,}
-API Key: (?i)(api[_-]?key|apikey)\s*[=:]\s*[A-Za-z0-9_\-]{20,}
-JWT Token: \beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b
-IP Address - Private: \b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b
-IBAN: \b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b
-Bitcoin Address: \b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b
-URL with Credentials: (?i)https?://[^:]+:[^@]+@[^\s]+
+# ==========================================
+# Hawk-Eye Scanner - Fingerprint Patterns
+# ==========================================
+# Categorias disponibles:
+#   - PCI: Datos de tarjetas de pago
+#   - CREDENTIALS: Credenciales y secretos
+#   - PII: Informacion de identificacion personal
+#   - INFRA: Infraestructura
+#   - CRYPTO: Criptomonedas
+
+"Credit Card - Visa":
+  regex: '\b4[0-9]{12}(?:[0-9]{3})?\b'
+  category: PCI
+  severity: CRITICAL
+
+"Credit Card - Mastercard":
+  regex: '\b5[1-5][0-9]{14}\b'
+  category: PCI
+  severity: CRITICAL
+
+"Credit Card - American Express":
+  regex: '\b3[47][0-9]{13}\b'
+  category: PCI
+  severity: CRITICAL
+
+"Credit Card - Discover":
+  regex: '\b6(?:011|5[0-9]{2})[0-9]{12}\b'
+  category: PCI
+  severity: CRITICAL
+
+"IBAN":
+  regex: '\b[A-Z]{2}\d{2}[A-Z0-9]{4}\d{7}([A-Z0-9]?){0,16}\b'
+  category: PCI
+  severity: MEDIUM
+
+"AWS Secret Key":
+  regex: '\b[A-Za-z0-9/+=]{40}\b'
+  category: CREDENTIALS
+  severity: CRITICAL
+
+"Private Key":
+  regex: '-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----'
+  category: CREDENTIALS
+  severity: CRITICAL
+
+"AWS Access Key":
+  regex: '\b(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}\b'
+  category: CREDENTIALS
+  severity: HIGH
+
+"Generic Password":
+  regex: '(?i)(password|pwd|passwd)\s*[=:]\s*\S{4,}'
+  category: CREDENTIALS
+  severity: HIGH
+
+"API Key":
+  regex: '(?i)(api[_-]?key|apikey)\s*[=:]\s*[A-Za-z0-9_\-]{20,}'
+  category: CREDENTIALS
+  severity: HIGH
+
+"JWT Token":
+  regex: '\beyJ[A-Za-z0-9_-]*\.eyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]*\b'
+  category: CREDENTIALS
+  severity: HIGH
+
+"URL with Credentials":
+  regex: '(?i)https?://[^:]+:[^@]+@[^\s]+'
+  category: CREDENTIALS
+  severity: HIGH
+
+"Social Security Number (SSN)":
+  regex: '\b\d{3}-\d{2}-\d{4}\b'
+  category: PII
+  severity: HIGH
+
+"Email Address":
+  regex: '\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+  category: PII
+  severity: MEDIUM
+
+"Phone Number - US":
+  regex: '\b(?:\+?1[-.]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b'
+  category: PII
+  severity: MEDIUM
+
+"Phone Number - International":
+  regex: '\b\+\d{1,3}[-.\s]?\d{1,4}[-.\s]?\d{1,4}[-.\s]?\d{1,9}\b'
+  category: PII
+  severity: MEDIUM
+
+"IP Address - Private":
+  regex: '\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})\b'
+  category: INFRA
+  severity: MEDIUM
+
+"Bitcoin Address":
+  regex: '\b[13][a-km-zA-HJ-NP-Z1-9]{25,34}\b'
+  category: CRYPTO
+  severity: LOW
