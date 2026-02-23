@@ -80,8 +80,8 @@ Hawk-Eye Scanner detecta, clasifica y gestiona **datos sensibles** en bases de d
 
 ```bash
 # 1. Clonar el repositorio
-git clone https://github.com/safernandez666/hawk-eye-scanner.git
-cd hawk-eye-scanner
+git clone https://github.com/safernandez666/poirot.git
+cd poirot
 
 # 2. Levantar todos los servicios (primera vez tarda ~5 minutos)
 docker compose up -d

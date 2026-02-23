@@ -287,6 +287,23 @@
                 </div>
             </div>
 
+            <!-- Scan Progress Modal -->
+            <div class="modal modal-blur fade" id="scanModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog modal-sm modal-dialog-centered">
+                    <div class="modal-content">
+                        <div class="modal-body text-center py-4">
+                            <i class="ti ti-radar-2 mb-2" id="scan-modal-icon" style="font-size:2.5rem; color:#206bc4;"></i>
+                            <h3 style="font-size:.95rem;" id="scan-modal-title">Escaneando fuentes...</h3>
+                            <div class="text-muted mb-3" style="font-size:.8rem;" id="scan-modal-stage">Conectando al scanner...</div>
+                            <div class="progress mb-2" style="height:6px;">
+                                <div class="progress-bar progress-bar-indeterminate" id="scan-progress-bar"></div>
+                            </div>
+                            <div class="text-muted" style="font-size:.75rem;" id="scan-modal-timer">0s transcurridos</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Footer -->
             <footer class="footer footer-transparent d-print-none" style="padding:.5rem 0; font-size:.75rem;">
                 <div class="container-xl">
@@ -346,46 +363,80 @@
             if (scanRunning) return;
             scanRunning = true;
             const btn = document.getElementById('scan-btn');
-            const icon = document.getElementById('scan-icon');
-            const text = document.getElementById('scan-text');
             btn.disabled = true;
-            icon.className = 'ti ti-loader animate-spin me-1';
+
+            // Open modal
+            const modal = new bootstrap.Modal(document.getElementById('scanModal'));
+            const modalIcon = document.getElementById('scan-modal-icon');
+            const modalTitle = document.getElementById('scan-modal-title');
+            const modalStage = document.getElementById('scan-modal-stage');
+            const modalTimer = document.getElementById('scan-modal-timer');
+            const progressBar = document.getElementById('scan-progress-bar');
+
+            modalIcon.className = 'ti ti-radar-2 mb-2';
+            modalIcon.style.color = '#206bc4';
+            modalTitle.textContent = 'Escaneando fuentes...';
+            progressBar.className = 'progress-bar progress-bar-indeterminate';
+            progressBar.style.width = '';
+            modal.show();
 
             let seconds = 0;
-            const stages = ['Conectando al scanner...', 'Analizando MySQL...', 'Analizando S3...', 'Procesando resultados...'];
-            text.textContent = stages[0];
+            const stages = [
+                { at: 0, text: 'Conectando al scanner...' },
+                { at: 3, text: 'Analizando bases de datos MySQL...' },
+                { at: 8, text: 'Analizando buckets S3...' },
+                { at: 15, text: 'Comparando fingerprints...' },
+                { at: 22, text: 'Clasificando hallazgos...' },
+                { at: 30, text: 'Finalizando analisis...' }
+            ];
+            modalStage.textContent = stages[0].text;
+
             const timer = setInterval(() => {
                 seconds++;
-                const stage = stages[Math.min(Math.floor(seconds / 5), stages.length - 1)];
-                text.textContent = `${stage} (${seconds}s)`;
+                const current = stages.filter(s => s.at <= seconds).pop();
+                modalStage.textContent = current.text;
+                modalTimer.textContent = `${seconds}s transcurridos`;
             }, 1000);
 
             try {
                 const res = await fetch(`${API_URL}/scanner/run`, { method: 'POST' });
                 const data = await res.json();
                 clearInterval(timer);
+
                 if (data.status === 'completed') {
-                    text.textContent = `Completado en ${seconds}s`;
-                    icon.className = 'ti ti-check me-1';
+                    modalIcon.className = 'ti ti-circle-check mb-2';
+                    modalIcon.style.color = '#2fb344';
+                    modalTitle.textContent = 'Escaneo completado';
+                    modalStage.textContent = `Finalizado en ${seconds} segundos`;
+                    progressBar.className = 'progress-bar bg-green';
+                    progressBar.style.width = '100%';
+                    modalTimer.textContent = '';
                     loadDashboard();
                 } else {
-                    text.textContent = 'Error';
-                    icon.className = 'ti ti-x me-1';
-                    console.error('Scan error:', data);
+                    modalIcon.className = 'ti ti-circle-x mb-2';
+                    modalIcon.style.color = '#d63939';
+                    modalTitle.textContent = 'Error en escaneo';
+                    modalStage.textContent = data.message || data.stderr || 'Error desconocido';
+                    progressBar.className = 'progress-bar bg-red';
+                    progressBar.style.width = '100%';
+                    modalTimer.textContent = '';
                 }
             } catch (error) {
                 clearInterval(timer);
-                text.textContent = 'Error';
-                icon.className = 'ti ti-x me-1';
-                console.error('Scan error:', error);
+                modalIcon.className = 'ti ti-circle-x mb-2';
+                modalIcon.style.color = '#d63939';
+                modalTitle.textContent = 'Error de conexion';
+                modalStage.textContent = 'No se pudo conectar al scanner';
+                progressBar.className = 'progress-bar bg-red';
+                progressBar.style.width = '100%';
+                modalTimer.textContent = '';
             }
 
             setTimeout(() => {
+                modal.hide();
                 btn.disabled = false;
-                icon.className = 'ti ti-radar-2 me-1';
-                text.textContent = 'Escanear Ahora';
                 scanRunning = false;
-            }, 3000);
+            }, 2500);
         }
 
         // ==========================================

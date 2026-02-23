@@ -143,7 +143,7 @@ services:
       - CONNECTION_PATH=/app/config/connection.yml
       - FLASK_DEBUG=false
       - THEHIVE_URL=http://thehive:9000
-      - THEHIVE_API_KEY=cyj8nR1aydTRN3ONoeJhIjRbYI9YYLix
+      - THEHIVE_API_KEY=FEdjJZ0rxWGZoXsIPOAdVmuOivmgo3h9
     volumes:
       # Compartir la base de datos SQLite del scanner
       - ./hawk-scanner/data:/app/data

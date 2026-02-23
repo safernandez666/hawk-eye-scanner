@@ -10,6 +10,7 @@ import csv
 import json
 import socket
 import subprocess
+import threading
 import yaml
 import requests
 from datetime import datetime
@@ -161,6 +162,7 @@ def get_alerts():
         status = request.args.get('status')
         data_source = request.args.get('source')
         limit = request.args.get('limit', 100, type=int)
+        latest = request.args.get('latest', 'false').lower() == 'true'
         
         # Construir query dinámicamente
         where_clauses = []
@@ -179,7 +181,9 @@ def get_alerts():
         query = 'SELECT * FROM alerts'
         if where_clauses:
             query += ' WHERE ' + ' AND '.join(where_clauses)
-        query += ' ORDER BY first_seen DESC LIMIT ?'
+        # Si latest=true, ordenar por last_seen para ver alertas del último scan
+        order_by = 'last_seen DESC' if latest else 'first_seen DESC'
+        query += f' ORDER BY {order_by} LIMIT ?'
         params.append(limit)
         
         cursor.execute(query, params)
@@ -213,7 +217,8 @@ def get_alerts():
             'filters': {
                 'severity': severity,
                 'status': status,
-                'source': data_source
+                'source': data_source,
+                'latest': latest
             }
         })
         
@@ -551,15 +556,14 @@ def thehive_case_detail(case_id):
 
 @app.route('/api/thehive/sync', methods=['POST'])
 def thehive_sync():
-    """Envia alertas CRITICAL/HIGH sin caso a TheHive y actualiza la DB"""
+    """Envia todas las alertas sin caso a TheHive y actualiza la DB"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute('''
             SELECT alert_hash, pattern_name, data_source, location, severity
             FROM alerts
-            WHERE severity IN ('CRITICAL', 'HIGH')
-            AND (thehive_case_id IS NULL OR thehive_case_id = '')
+            WHERE (thehive_case_id IS NULL OR thehive_case_id = '')
         ''')
         pending = cursor.fetchall()
 
@@ -629,38 +633,95 @@ def thehive_sync():
 # SCANNER TRIGGER ENDPOINTS
 # ==========================================
 
+# Estado global del scan (en memoria, un solo scan a la vez)
+_scan_state = {
+    'running': False,
+    'started_at': None,
+    'result': None,   # {status, returncode, stdout, stderr, message}
+    'logs': [],        # líneas de log en tiempo real
+}
+_scan_lock = threading.Lock()
+
+
+def _run_scan_background(docker_path):
+    """Ejecuta el scan en background y actualiza _scan_state"""
+    global _scan_state
+    try:
+        process = subprocess.Popen(
+            [docker_path, 'exec', 'hawk-scanner', 'python3', '-u', '/app/run_hawk_scanner.py'],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True
+        )
+        # Leer línea por línea para logs en tiempo real
+        for line in process.stdout:
+            stripped = line.rstrip('\n')
+            if stripped:
+                with _scan_lock:
+                    _scan_state['logs'].append(stripped)
+
+        process.wait(timeout=300)
+
+        with _scan_lock:
+            _scan_state['running'] = False
+            _scan_state['result'] = {
+                'status': 'completed' if process.returncode == 0 else 'error',
+                'returncode': process.returncode,
+            }
+    except subprocess.TimeoutExpired:
+        process.kill()
+        with _scan_lock:
+            _scan_state['running'] = False
+            _scan_state['result'] = {'status': 'timeout', 'message': 'Excedio el tiempo limite (5min)'}
+    except Exception as e:
+        with _scan_lock:
+            _scan_state['running'] = False
+            _scan_state['result'] = {'status': 'error', 'message': str(e)}
+
+
 @app.route('/api/scanner/run', methods=['POST'])
 def scanner_run():
-    """Ejecuta el scanner manualmente via docker exec"""
-    try:
-        result = subprocess.run(
-            ['docker', 'exec', 'hawk-scanner', 'python3', '/app/run_hawk_scanner.py'],
-            capture_output=True, text=True, timeout=300
-        )
+    """Inicia el scanner en background y retorna inmediatamente"""
+    import shutil
+    global _scan_state
+
+    with _scan_lock:
+        if _scan_state['running']:
+            return jsonify({'status': 'already_running', 'message': 'Ya hay un escaneo en curso'}), 409
+
+    docker_path = shutil.which('docker')
+    if not docker_path:
         return jsonify({
-            'status': 'completed' if result.returncode == 0 else 'error',
-            'returncode': result.returncode,
-            'stdout': result.stdout[-2000:] if result.stdout else '',
-            'stderr': result.stderr[-2000:] if result.stderr else ''
-        })
-    except subprocess.TimeoutExpired:
-        return jsonify({'status': 'timeout', 'message': 'El escaneo excedio el tiempo limite (5min)'}), 504
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)}), 500
+            'status': 'error',
+            'message': 'Docker no encontrado en el PATH.'
+        }), 500
+
+    with _scan_lock:
+        _scan_state['running'] = True
+        _scan_state['started_at'] = datetime.now().isoformat()
+        _scan_state['result'] = None
+        _scan_state['logs'] = []
+
+    thread = threading.Thread(target=_run_scan_background, args=(docker_path,), daemon=True)
+    thread.start()
+
+    return jsonify({'status': 'started', 'message': 'Escaneo iniciado'})
 
 
 @app.route('/api/scanner/status', methods=['GET'])
 def scanner_status():
-    """Verifica si el scanner container esta corriendo"""
-    try:
-        result = subprocess.run(
-            ['docker', 'inspect', '-f', '{{.State.Running}}', 'hawk-scanner'],
-            capture_output=True, text=True, timeout=10
-        )
-        running = result.stdout.strip() == 'true'
-        return jsonify({'running': running})
-    except Exception as e:
-        return jsonify({'running': False, 'error': str(e)})
+    """Retorna estado del scan: running, logs nuevos, resultado"""
+    # Parámetro para paginación de logs (el frontend pide desde línea N)
+    since = request.args.get('since', 0, type=int)
+
+    with _scan_lock:
+        new_logs = _scan_state['logs'][since:]
+        return jsonify({
+            'running': _scan_state['running'],
+            'started_at': _scan_state['started_at'],
+            'result': _scan_state['result'],
+            'logs': new_logs,
+            'total_logs': len(_scan_state['logs']),
+        })
 
 
 # ==========================================
@@ -775,13 +836,25 @@ def sources_health():
                         entry['message'] = f'{host}:{port} accesible'
                     elif source_type == 's3':
                         endpoint = cfg.get('endpoint_url', '')
-                        if endpoint:
+                        bucket = cfg.get('bucket_name', '')
+                        if endpoint and bucket:
                             endpoint = resolve_endpoint(endpoint)
-                            r = requests.get(endpoint, timeout=3)
-                            entry['status'] = 'connected'
-                            entry['message'] = f'Endpoint responde ({r.status_code})'
-                        else:
+                            # Check bucket specifically, not just endpoint
+                            bucket_url = f"{endpoint.rstrip('/')}/{bucket}"
+                            r = requests.get(bucket_url, timeout=3)
+                            if r.status_code == 200:
+                                entry['status'] = 'connected'
+                                entry['message'] = f'Bucket "{bucket}" accesible'
+                            elif r.status_code == 404:
+                                entry['status'] = 'error'
+                                entry['message'] = f'Bucket "{bucket}" no existe'
+                            else:
+                                entry['status'] = 'connected'
+                                entry['message'] = f'Bucket responde ({r.status_code})'
+                        elif not endpoint:
                             entry['message'] = 'No endpoint_url configurado'
+                        else:
+                            entry['message'] = 'No bucket_name configurado'
                     else:
                         entry['message'] = 'Tipo no soportado para health check'
                 except Exception as e:

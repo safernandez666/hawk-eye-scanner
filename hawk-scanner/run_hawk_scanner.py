@@ -299,21 +299,20 @@ if __name__ == "__main__":
 
             # 3b. Crear nuevos casos (UN SOLO CASO POR UBICACIÓN)
             print(f"\n{'='*70}")
-            print("🎯 Enviando alertas críticas a TheHive...")
+            print("🎯 Enviando alertas a TheHive...")
             print(f"{'='*70}")
 
             for alert in new_alerts:
                 finding = alert['finding']
-                if finding.get('severity') in ['CRITICAL', 'HIGH']:
-                    is_reopen = alert.get('is_reopen', False)
-                    case_id = thehive.create_case(finding, alert['alert_hash'], is_reopen)
-                    if case_id:
-                        alert_mgr.update_thehive_case(
-                            alert['alert_hash'],
-                            case_id,
-                            'New'
-                        )
-                        cases_created += 1
+                is_reopen = alert.get('is_reopen', False)
+                case_id = thehive.create_case(finding, alert['alert_hash'], is_reopen)
+                if case_id:
+                    alert_mgr.update_thehive_case(
+                        alert['alert_hash'],
+                        case_id,
+                        'New'
+                    )
+                    cases_created += 1
 
             if cases_created > 0:
                 print(f"\n📋 Casos creados: {cases_created}")

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """
-Servidor de desarrollo local para el Dashboard Poirot DSPM.
-Sirve el frontend estático + API Flask en un solo proceso.
-Conecta a los servicios Docker (MySQL, S3, TheHive) via localhost.
+Servidor de desarrollo - Solo API Flask (puerto 5001)
+El frontend Next.js se sirve via 'npm run dev' (puerto 3000)
 
 Uso:
-    python dashboard/dev.py
+    Terminal 1: python dashboard/dev.py
+    Terminal 2: cd dashboard/frontend-next && npm run dev
+
+    Abrir: http://localhost:3000
 
 Requiere:
     pip install flask flask-cors pyyaml requests
@@ -28,30 +30,15 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'api'))
 
 from api import app
 
-# Servir frontend estático desde Flask
-FRONTEND_DIR = os.path.join(os.path.dirname(__file__), 'frontend')
-
-
-@app.route('/')
-def serve_index():
-    return app.send_static_file('index.html')
-
-
-@app.route('/<path:filename>')
-def serve_static(filename):
-    return app.send_static_file(filename)
-
-
-app.static_folder = FRONTEND_DIR
-app.static_url_path = ''
-
 if __name__ == '__main__':
-    print(f"\n  Poirot DSPM - Desarrollo Local")
-    print(f"  ================================")
-    print(f"  Frontend: {FRONTEND_DIR}")
+    port = int(os.environ.get('PORT', 5001))
+    print(f"\n  Poirot DSPM - API Development Server")
+    print(f"  =====================================")
+    print(f"  API:      http://localhost:{port}/api")
     print(f"  DB:       {os.environ['ALERTS_DB_PATH']}")
     print(f"  TheHive:  {os.environ['THEHIVE_URL']}")
-    print(f"  ================================")
-    port = int(os.environ.get('PORT', 5001))
-    print(f"  Abrir: http://localhost:{port}\n")
+    print(f"  =====================================")
+    print(f"  Para el frontend Next.js:")
+    print(f"    cd dashboard/frontend-next && npm run dev")
+    print(f"  Abrir: http://localhost:3000\n")
     app.run(host='0.0.0.0', port=port, debug=True)
