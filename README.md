@@ -1,109 +1,112 @@
-<h1 align="center">Poirot DSPM</h1>
 <p align="center">
-  <img src="screenshots/logo.png" alt="Poirot" width="380">
+  <img src="screenshots/logo.png" alt="Poirot DSPM" width="280">
 </p>
-<div>
-  <p align="center">
-    <a href="https://www.loom.com/share/410cab64f9084212aff7911729f8896b">
-    </a>
-    <a href="https://www.loom.com/share/410cab64f9084212aff7911729f8896b">
-      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/410cab64f9084212aff7911729f8896b-0d94a39cb9200ceb-full-play.gif#t=0.1">
-    </a>
-  </p>
-</div>
 
-<p align="center"><strong>Data Security Posture Management</strong> - Detecta, clasifica y gestiona datos sensibles en tus fuentes de datos.</p>
+<h1 align="center">Poirot DSPM</h1>
 
-[![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/)
-[![Docker](https://img.shields.io/badge/docker-compose-blue.svg)](https://www.docker.com/)
-[![Next.js](https://img.shields.io/badge/Next.js-15-black.svg)](https://nextjs.org/)
-[![TheHive](https://img.shields.io/badge/TheHive-5.0-orange.svg)](https://thehive-project.org/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<p align="center">
+  <strong>Data Security Posture Management</strong><br>
+  Detect, classify and manage sensitive data across your data sources.
+</p>
+
+<p align="center">
+  <a href="https://www.loom.com/share/410cab64f9084212aff7911729f8896b">
+    <img src="https://cdn.loom.com/sessions/thumbnails/410cab64f9084212aff7911729f8896b-0d94a39cb9200ceb-full-play.gif#t=0.1" alt="Demo" width="400">
+  </a>
+</p>
+
+<p align="center">
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11-blue.svg" alt="Python"></a>
+  <a href="https://www.docker.com/"><img src="https://img.shields.io/badge/docker-compose-blue.svg" alt="Docker"></a>
+  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-15-black.svg" alt="Next.js"></a>
+  <a href="https://thehive-project.org/"><img src="https://img.shields.io/badge/TheHive-5.0-orange.svg" alt="TheHive"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License"></a>
+</p>
 
 > Blog: [La Batalla Perdida de la Clasificacion de la Informacion](https://blog.santiagoagustinfernandez.com/la-batalla-perdida-de-la-clasificacion-de-la-informacion)
 
 ---
 
-## Que es Poirot?
+## What is Poirot?
 
-Poirot escanea fuentes de datos buscando **informacion sensible** (tarjetas de credito, credenciales, PII) usando patrones regex configurables. Clasifica los hallazgos por severidad, deduplica por ubicacion y puede crear casos automaticamente en **TheHive** para su gestion.
+Poirot scans data sources looking for **sensitive information** (credit cards, credentials, PII) using configurable regex patterns. It classifies findings by severity, deduplicates by location, and can automatically create cases in **TheHive** for case management.
 
-El proyecto incluye una base de datos MySQL y un bucket S3 (via LocalStack) como **fuentes de prueba** para demostrar el funcionamiento.
+The project includes a MySQL database and an S3 bucket (via LocalStack) as **demo sources** to showcase the functionality.
 
 ### Pipeline
 
-![Arquitectura](screenshots/arquitectura.png)
+![Architecture](screenshots/arquitectura.png)
 
 ```
-Fuentes de datos --> Hawk-Eye Scanner (regex) --> Clasificacion de severidad --> Deduplicacion (hash/SQLite) --> TheHive (casos)
+Data Sources --> Hawk-Eye Scanner (regex) --> Severity Classification --> Deduplication (hash/SQLite) --> TheHive (cases)
 ```
 
-### Que hace
+### Features
 
-- Escanea fuentes de datos con patrones regex configurables
-- Clasifica hallazgos por severidad (CRITICAL, HIGH, MEDIUM, LOW)
-- Deduplica por hash de ubicacion (misma tabla+columna+patron = 1 alerta)
-- Detecta re-ocurrencias: si un hallazgo resuelto reaparece, se reabre
-- Dashboard web con KPIs, graficos, filtros y exportacion
-- CRUD de patrones y fuentes desde la UI
-- Creacion automatica de casos en TheHive
-- Notificaciones por SMTP, Slack, Teams o Webhook
+- Scan data sources with configurable regex patterns
+- Classify findings by severity (CRITICAL, HIGH, MEDIUM, LOW)
+- Deduplicate by location hash (same table+column+pattern = 1 alert)
+- Detect re-occurrences: if a resolved finding reappears, it gets reopened
+- Web dashboard with KPIs, charts, filters and export
+- CRUD for patterns and sources from the UI
+- Automatic case creation in TheHive
+- Notifications via SMTP, Slack, Teams or Webhook
 
 ---
 
 ## Stack
 
-| Componente | Tecnologia | Puerto |
+| Component | Technology | Port |
 |---|---|---|
 | Scanner | Python 3.11 + [hawk_scanner](https://github.com/rohitcoder/hawk-eye) | - |
 | Dashboard | Next.js + shadcn/ui + Tailwind | `:8080` |
-| API | Flask | Interno |
-| Case Management | TheHive 5.0 (opcional) | `:9000` |
+| API | Flask | Internal |
+| Case Management | TheHive 5.0 (optional) | `:9000` |
 | Tracking | SQLite | - |
-| *Demo:* Base de datos | MySQL 8.0 | `:3306` |
+| *Demo:* Database | MySQL 8.0 | `:3306` |
 | *Demo:* Object Storage | LocalStack S3 | `:4566` |
 
 ---
 
-## Instalacion
+## Installation
 
-### Prerrequisitos
+### Prerequisites
 
 - Docker Engine 20.10+
 - Docker Compose 2.0+
-- Python 3.11+ (para generar datos de prueba)
+- Python 3.11+ (to generate test data)
 
-### Modo Standalone (sin TheHive)
+### Standalone Mode (without TheHive)
 
 ```bash
 git clone https://github.com/safernandez666/poirot.git
 cd poirot
 
-# Levantar servicios
+# Start services
 docker compose up -d
 
-# Generar datos de prueba en MySQL y S3
+# Generate test data in MySQL and S3
 pip3 install pymysql boto3
 python3 generar_datos.py
 
-# Ejecutar el primer scan
+# Run the first scan
 docker exec hawk-scanner python3 run_hawk_scanner.py
 ```
 
 Dashboard: **http://localhost:8080**
 
-### Modo con TheHive
+### With TheHive
 
-Incluye Cassandra + Elasticsearch + TheHive para gestion de casos:
+Includes Cassandra + Elasticsearch + TheHive for case management:
 
 ```bash
-# Habilitar TheHive en docker-compose.yml:
-#   THEHIVE_ENABLED=true (en hawk-scanner y dashboard)
+# Enable TheHive in docker-compose.yml:
+#   THEHIVE_ENABLED=true (for hawk-scanner and dashboard)
 
-# Levantar con el perfil thehive
+# Start with the thehive profile
 docker compose --profile thehive up -d
 
-# Generar datos y escanear
+# Generate data and scan
 pip3 install pymysql boto3
 python3 generar_datos.py
 docker exec hawk-scanner python3 run_hawk_scanner.py
@@ -111,44 +114,44 @@ docker exec hawk-scanner python3 run_hawk_scanner.py
 
 Dashboard: **http://localhost:8080** | TheHive: **http://localhost:9000**
 
-#### Configurar API Key de TheHive
+#### Configure TheHive API Key
 
-TheHive necesita una API key para que el scanner cree casos. Despues de que TheHive este healthy:
+TheHive requires an API key for the scanner to create cases. After TheHive is healthy:
 
-1. Entrar a http://localhost:9000 (user: `admin@thehive.local` / pass: `secret`)
-2. Crear organizacion "poirot"
-3. Crear usuario `poirot@thehive.local` con perfil **org-admin**
-4. Generar API Key para ese usuario
-5. En el dashboard ir a **Configuracion** > **TheHive**, habilitar y pegar la API Key
-6. Probar con el boton **Conectar**
+1. Go to http://localhost:9000 (user: `admin@thehive.local` / pass: `secret`)
+2. Create organization "poirot"
+3. Create user `poirot@thehive.local` with **org-admin** profile
+4. Generate an API Key for that user
+5. In the dashboard go to **Settings** > **TheHive**, enable it and paste the API Key
+6. Test with the **Connect** button
 
-Tambien se puede configurar via env vars en `docker-compose.yml`:
+You can also configure via env vars in `docker-compose.yml`:
 ```yaml
 THEHIVE_ENABLED=true
-THEHIVE_API_KEY=tu-api-key
+THEHIVE_API_KEY=your-api-key
 ```
 
 ---
 
 ## Dashboard
 
-El dashboard tiene 7 secciones:
+The dashboard has 7 sections:
 
-| Pagina | Descripcion |
+| Page | Description |
 |---|---|
-| **Dashboard** | KPIs, graficos de severidad y fuentes, alertas recientes, boton "Escanear Ahora" |
-| **Alertas** | Tabla con filtros por severidad/estado, busqueda, exportacion CSV/JSON |
-| **Patrones** | CRUD de patrones regex, visualizador y validador de regex |
-| **Timeline** | Grafico de detecciones por dia |
-| **Fuentes** | CRUD de fuentes de datos, semaforo de conectividad |
-| **Casos** | Casos en TheHive, sincronizacion de alertas |
-| **Configuracion** | Canales de notificacion (SMTP, Slack, Teams, Webhook, TheHive) |
+| **Dashboard** | KPIs, severity and source charts, recent alerts, "Scan Now" button |
+| **Alerts** | Table with severity/status filters, search, CSV/JSON export |
+| **Patterns** | Regex pattern CRUD, regex visualizer and validator |
+| **Timeline** | Detection chart by day |
+| **Sources** | Data source CRUD, connectivity health check |
+| **Cases** | TheHive cases, alert sync |
+| **Settings** | Notification channels (SMTP, Slack, Teams, Webhook, TheHive) |
 
 ---
 
-## Patrones
+## Patterns
 
-Los patrones se definen en `hawk-scanner/fingerprint.yml` o desde la UI:
+Patterns are defined in `hawk-scanner/fingerprint.yml` or from the UI:
 
 ```yaml
 "Credit Card - Visa":
@@ -162,86 +165,86 @@ Los patrones se definen en `hawk-scanner/fingerprint.yml` o desde la UI:
   severity: HIGH
 ```
 
-Patrones incluidos:
+Included patterns:
 
-| Categoria | Patrones | Severidad |
+| Category | Patterns | Severity |
 |---|---|---|
-| **Tarjetas** | Visa, Mastercard, Amex, Discover | CRITICAL |
-| **Credenciales** | AWS Secret Key, Private Keys | CRITICAL |
-| **PII/Acceso** | SSN, AWS Access Key, Passwords, API Keys, JWT, URLs con credenciales | HIGH |
-| **Contacto** | Email, Telefono US/Internacional, IP Privada, IBAN | MEDIUM |
+| **Payment Cards** | Visa, Mastercard, Amex, Discover | CRITICAL |
+| **Credentials** | AWS Secret Key, Private Keys | CRITICAL |
+| **PII/Access** | SSN, AWS Access Key, Passwords, API Keys, JWT, URLs with credentials | HIGH |
+| **Contact** | Email, US/International Phone, Private IP, IBAN | MEDIUM |
 | **Crypto** | Bitcoin Address | LOW |
 
 ---
 
 ## API
 
-| Endpoint | Metodo | Descripcion |
+| Endpoint | Method | Description |
 |---|---|---|
 | `/api/health` | GET | Health check |
-| `/api/stats` | GET | KPIs del dashboard |
-| `/api/alerts` | GET | Alertas con filtros (`severity`, `status`, `source`) |
-| `/api/alerts/export` | GET | Exportar alertas (`format=csv\|json`) |
-| `/api/config/patterns` | GET/POST | Listar/agregar patrones |
-| `/api/config/patterns/<name>` | PUT/DELETE | Editar/eliminar patron |
-| `/api/config/sources` | GET/POST | Listar/agregar fuentes |
-| `/api/config/sources/<type>/<name>` | DELETE | Eliminar fuente |
-| `/api/config/sources/health` | GET | Conectividad de cada fuente |
-| `/api/config/notifications` | GET | Canales de notificacion |
-| `/api/config/notifications/<channel>` | PUT | Actualizar canal |
-| `/api/config/notifications/<channel>/test` | POST | Enviar notificacion de prueba |
-| `/api/validate-regex` | POST | Validar regex contra texto |
-| `/api/scanner/run` | POST | Ejecutar scan |
-| `/api/scanner/status` | GET | Estado del scan |
-| `/api/thehive/status` | GET | Conexion con TheHive |
-| `/api/thehive/cases` | GET | Listar casos |
-| `/api/thehive/sync` | POST | Sincronizar alertas pendientes |
+| `/api/stats` | GET | Dashboard KPIs |
+| `/api/alerts` | GET | Alerts with filters (`severity`, `status`, `source`) |
+| `/api/alerts/export` | GET | Export alerts (`format=csv\|json`) |
+| `/api/config/patterns` | GET/POST | List/add patterns |
+| `/api/config/patterns/<name>` | PUT/DELETE | Edit/delete pattern |
+| `/api/config/sources` | GET/POST | List/add sources |
+| `/api/config/sources/<type>/<name>` | DELETE | Delete source |
+| `/api/config/sources/health` | GET | Source connectivity check |
+| `/api/config/notifications` | GET | Notification channels |
+| `/api/config/notifications/<channel>` | PUT | Update channel |
+| `/api/config/notifications/<channel>/test` | POST | Send test notification |
+| `/api/validate-regex` | POST | Validate regex against text |
+| `/api/scanner/run` | POST | Trigger scan |
+| `/api/scanner/status` | GET | Scan status |
+| `/api/thehive/status` | GET | TheHive connection |
+| `/api/thehive/cases` | GET | List cases |
+| `/api/thehive/sync` | POST | Sync pending alerts |
 
 ---
 
-## Desarrollo Local
+## Local Development
 
-Para iterar en el dashboard sin rebuild de Docker:
+To iterate on the dashboard without Docker rebuild:
 
 ```bash
-# Terminal 1: API Flask
+# Terminal 1: Flask API
 pip3 install flask flask-cors pyyaml requests
 python3 dashboard/dev.py
 
-# Terminal 2: Frontend Next.js
+# Terminal 2: Next.js Frontend
 cd dashboard/frontend-next
 npm install
 npm run dev
 ```
 
-API en http://localhost:5001 | Frontend en http://localhost:3000
+API at http://localhost:5001 | Frontend at http://localhost:3000
 
 ---
 
-## Estructura
+## Project Structure
 
 ```
 .
-├── docker-compose.yml              # Orquestacion
+├── docker-compose.yml              # Orchestration
 ├── Dockerfile                      # Scanner image
-├── generar_datos.py                # Generador de datos de prueba
+├── generar_datos.py                # Test data generator
 │
-├── hawk-scanner/                   # Motor de escaneo
-│   ├── run_hawk_scanner.py         # Script principal
-│   ├── alert_manager.py            # Tracking y deduplicacion (SQLite)
-│   ├── severity_classifier.py      # Severidad desde fingerprint.yml
+├── hawk-scanner/                   # Scan engine
+│   ├── run_hawk_scanner.py         # Main script
+│   ├── alert_manager.py            # Tracking & deduplication (SQLite)
+│   ├── severity_classifier.py      # Severity from fingerprint.yml
 │   ├── notification_manager.py     # SMTP, Slack, Teams, Webhook, TheHive
-│   ├── fingerprint.yml             # Patrones regex
-│   └── connection.yml              # Fuentes + config notificaciones
+│   ├── fingerprint.yml             # Regex patterns
+│   └── connection.yml              # Sources + notification config
 │
-├── dashboard/                      # Dashboard web
+├── dashboard/                      # Web dashboard
 │   ├── Dockerfile                  # Multi-stage: Next.js build + Nginx + Flask
 │   ├── api/
-│   │   └── api.py                  # API REST Flask
+│   │   └── api.py                  # Flask REST API
 │   └── frontend-next/              # Next.js + shadcn/ui
-│       └── src/app/                # Pages: dashboard, alertas, patrones, etc.
+│       └── src/app/                # Pages: dashboard, alerts, patterns, etc.
 │
-├── reset.sh                        # Limpia alertas DB y casos TheHive
+├── reset.sh                        # Cleans alerts DB and TheHive cases
 └── thehive-config/
     └── application.conf
 ```
@@ -250,17 +253,17 @@ API en http://localhost:5001 | Frontend en http://localhost:3000
 
 ## Disclaimer
 
-Este proyecto es para **fines educativos y de investigacion en seguridad**. Las fuentes de datos incluidas (MySQL y S3) contienen datos completamente ficticios y existen solo para demostrar el funcionamiento del scanner.
+This project is for **educational and security research purposes**. The included data sources (MySQL and S3) contain entirely fictitious data and exist only to demonstrate the scanner's functionality.
 
 ---
 
-## Licencia
+## License
 
 [MIT License](LICENSE)
 
-## Creditos
+## Credits
 
-El motor de escaneo esta basado en [Hawk Eye](https://github.com/rohitcoder/hawk-eye) de **[Rohit Kumar](https://www.linkedin.com/in/rohitcoder/)**. Gracias Rohit por compartir siempre con buena energia y por construir una herramienta tan util para la comunidad.
+The scan engine is powered by [Hawk Eye](https://github.com/rohitcoder/hawk-eye) by **[Rohit Kumar](https://www.linkedin.com/in/rohitcoder/)**. Thank you Rohit for always sharing with great energy and for building such a valuable tool for the community.
 
 ---
 
