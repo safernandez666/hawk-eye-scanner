@@ -119,13 +119,13 @@ TheHive necesita una API key para que el scanner cree casos. Despues de que TheH
 2. Crear organizacion "poirot"
 3. Crear usuario `poirot@thehive.local` con perfil **org-admin**
 4. Generar API Key para ese usuario
-5. Actualizar la key en `docker-compose.yml` (`THEHIVE_API_KEY`)
-6. `docker compose build hawk-scanner dashboard && docker compose up -d`
+5. En el dashboard ir a **Configuracion** > **TheHive**, habilitar y pegar la API Key
+6. Probar con el boton **Conectar**
 
-Verificar conexion:
-```bash
-curl -s http://localhost:8080/api/thehive/status
-# {"status":"connected","code":200}
+Tambien se puede configurar via env vars en `docker-compose.yml`:
+```yaml
+THEHIVE_ENABLED=true
+THEHIVE_API_KEY=tu-api-key
 ```
 
 ---
@@ -151,10 +151,15 @@ El dashboard tiene 7 secciones:
 Los patrones se definen en `hawk-scanner/fingerprint.yml` o desde la UI:
 
 ```yaml
-Credit Card - Visa: \b4[0-9]{12}(?:[0-9]{3})?\b
-Social Security Number (SSN): \b\d{3}-\d{2}-\d{4}\b
-AWS Access Key: \b(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}\b
-Private Key: '-----BEGIN (RSA|DSA|EC|OPENSSH|PGP) PRIVATE KEY-----'
+"Credit Card - Visa":
+  regex: '\b4[0-9]{12}(?:[0-9]{3})?\b'
+  category: PCI
+  severity: CRITICAL
+
+"AWS Access Key":
+  regex: '\b(AKIA|A3T|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[A-Z0-9]{16}\b'
+  category: CREDENTIALS
+  severity: HIGH
 ```
 
 Patrones incluidos:
@@ -224,7 +229,7 @@ API en http://localhost:5001 | Frontend en http://localhost:3000
 ├── hawk-scanner/                   # Motor de escaneo
 │   ├── run_hawk_scanner.py         # Script principal
 │   ├── alert_manager.py            # Tracking y deduplicacion (SQLite)
-│   ├── severity_classifier.py      # Clasificacion por tipo de dato
+│   ├── severity_classifier.py      # Severidad desde fingerprint.yml
 │   ├── notification_manager.py     # SMTP, Slack, Teams, Webhook, TheHive
 │   ├── fingerprint.yml             # Patrones regex
 │   └── connection.yml              # Fuentes + config notificaciones
@@ -236,7 +241,7 @@ API en http://localhost:5001 | Frontend en http://localhost:3000
 │   └── frontend-next/              # Next.js + shadcn/ui
 │       └── src/app/                # Pages: dashboard, alertas, patrones, etc.
 │
-├── reset.sh                        # Limpia alertas DB (preserva casos TheHive)
+├── reset.sh                        # Limpia alertas DB y casos TheHive
 └── thehive-config/
     └── application.conf
 ```
