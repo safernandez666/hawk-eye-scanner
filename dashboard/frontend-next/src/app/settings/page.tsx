@@ -298,7 +298,7 @@ export default function SettingsPage() {
                     <Button
                       variant="outline"
                       onClick={() => handleTest(channelName)}
-                      disabled={testing === channelName}
+                      disabled={testing === channelName || !ch.enabled}
                     >
                       {testing === channelName ? (
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
