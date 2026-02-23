@@ -55,7 +55,9 @@ function getCurrentStep(logs: string[]): string {
       return `Creando casos en TheHive... ${caseProgress[1]}/${caseProgress[2]}`;
     }
 
-    // Inicio de creación de casos
+    // Fases de TheHive
+    if (line.includes("[thehive] Conectando")) return "Conectando con TheHive...";
+    if (line.includes("[thehive] Sincronizando")) return "Sincronizando estados en TheHive...";
     if (line.includes("[thehive] Creando")) return "Creando casos en TheHive...";
 
     // Mapeo de patrones a mensajes limpios

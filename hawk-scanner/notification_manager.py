@@ -255,11 +255,13 @@ class NotificationManager:
 
         thehive = TheHiveIntegration(url=url, api_key=api_key)
 
+        print("[thehive] Conectando con TheHive...")
         if not thehive.test_connection():
             raise ConnectionError(f'No se pudo conectar a TheHive en {url}')
 
         # Sincronizar estados de casos existentes
         if alert_mgr:
+            print("[thehive] Sincronizando estados de casos...")
             synced = thehive.sync_cases_status(alert_mgr)
             print(f"[notifications] thehive: sync - open={synced.get('open', 0)}, resolved={synced.get('resolved', 0)}")
 
