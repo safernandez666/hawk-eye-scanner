@@ -258,6 +258,10 @@ Este proyecto es para **fines educativos y de investigacion en seguridad**. Las 
 
 [MIT License](LICENSE)
 
+## Creditos
+
+El motor de escaneo esta basado en [Hawk Eye](https://github.com/rohitcoder/hawk-eye) de **[Rohit Kumar](https://www.linkedin.com/in/rohitcoder/)**.
+
 ---
 
 **Santiago Fernandez** - [Blog](https://blog.santiagoagustinfernandez.com) | [GitHub](https://github.com/safernandez666) | [LinkedIn](https://linkedin.com/in/safernandez666)
