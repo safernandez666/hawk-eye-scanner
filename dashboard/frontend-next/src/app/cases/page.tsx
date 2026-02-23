@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheHiveCases, useTheHiveStatus, useFeatures, useNotifications } from "@/hooks/use-api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Briefcase, CheckCircle, XCircle, RefreshCw, Filter, Database, Cloud } from "lucide-react";
+import { Briefcase, CheckCircle, XCircle, RefreshCw, Filter, Database, Cloud, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { syncTheHive } from "@/hooks/use-api";
 
@@ -62,8 +62,8 @@ const SEVERITY_FILTERS = ["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW"];
 const STATUS_FILTERS = ["ALL", "Open", "InProgress", "Resolved", "Closed"];
 
 export default function CasesPage() {
-  const { data: features, loading: featuresLoading } = useFeatures();
-  const { data: notificationsData, loading: notificationsLoading } = useNotifications();
+  const { data: features, loading: featuresLoading, refetch: refetchFeatures } = useFeatures();
+  const { data: notificationsData, loading: notificationsLoading, refetch: refetchNotifications } = useNotifications();
   
   // Verificar si The Hive está habilitado en notificaciones
   const thehiveChannel = notificationsData?.channels?.thehive;
@@ -77,6 +77,18 @@ export default function CasesPage() {
   const [syncing, setSyncing] = useState(false);
   const [severityFilter, setSeverityFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState("ALL");
+  
+  // Polling: verificar periódicamente si TheHive se habilitó desde otra pestaña/settings
+  useEffect(() => {
+    // Solo hacer polling cuando TheHive está deshabilitado para detectar cuando se habilite
+    if (!shouldFetchTheHive) {
+      const interval = setInterval(() => {
+        refetchFeatures();
+        refetchNotifications();
+      }, 3000); // Cada 3 segundos
+      return () => clearInterval(interval);
+    }
+  }, [shouldFetchTheHive, refetchFeatures, refetchNotifications]);
 
   // Nivel sistema: TheHive no está configurado
   if (!featuresLoading && !features?.thehive_enabled) {
@@ -85,13 +97,17 @@ export default function CasesPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Briefcase className="h-12 w-12 text-muted-foreground mb-4" />
-            <CardTitle className="mb-2">TheHive no habilitado</CardTitle>
-            <CardDescription className="text-center max-w-md">
-              La integracion con TheHive esta deshabilitada. Para habilitarla, configure{" "}
-              <code className="text-sm bg-muted px-1 py-0.5 rounded">THEHIVE_ENABLED=true</code> y
-              levante los servicios con{" "}
-              <code className="text-sm bg-muted px-1 py-0.5 rounded">docker compose --profile thehive up -d</code>
+            <CardTitle className="mb-2">TheHive no configurado</CardTitle>
+            <CardDescription className="text-center max-w-md mb-4">
+              Configure la conexion con TheHive para gestionar casos de seguridad.
             </CardDescription>
+            <Button variant="outline" onClick={() => window.location.href = '/settings'}>
+              Configurar conexion
+            </Button>
+            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Verificando estado...
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -110,9 +126,15 @@ export default function CasesPage() {
               La integracion con TheHive esta deshabilitada en la configuracion de notificaciones.
               Los casos no se sincronizaran hasta que lo habilites.
             </CardDescription>
-            <Button variant="outline" onClick={() => window.location.href = '/settings'}>
-              Ir a Configuracion
-            </Button>
+            <div className="flex items-center gap-4">
+              <Button variant="outline" onClick={() => window.location.href = '/settings'}>
+                Ir a Configuracion
+              </Button>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Verificando estado...
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -19,8 +19,9 @@ class TheHiveIntegration:
     def create_case(self, finding: Dict, alert_hash: str, is_reopen: bool = False) -> str:
         """Crea un caso en TheHive desde un hallazgo"""
 
+        # TheHive 5.x severity: 1=LOW, 2=MEDIUM, 3=HIGH, 4=CRITICAL
         severity_map = {
-            'CRITICAL': {'severity': 3, 'tlp': 3, 'pap': 3},
+            'CRITICAL': {'severity': 4, 'tlp': 3, 'pap': 3},
             'HIGH': {'severity': 3, 'tlp': 2, 'pap': 2},
             'MEDIUM': {'severity': 2, 'tlp': 1, 'pap': 1},
             'LOW': {'severity': 1, 'tlp': 0, 'pap': 0}

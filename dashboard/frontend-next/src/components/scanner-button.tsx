@@ -36,12 +36,45 @@ interface ScannerButtonProps {
   onScanComplete?: () => void;
 }
 
+// Extrae el paso actual de los logs de forma limpia
+function getCurrentStep(logs: string[]): string {
+  if (logs.length === 0) return "Iniciando...";
+  
+  // Buscar el último log significativo
+  for (let i = logs.length - 1; i >= 0; i--) {
+    const line = logs[i].trim();
+    if (!line) continue;
+    
+    // Skip líneas decorativas
+    if (line.startsWith("=") || line.startsWith("🦅") || line.startsWith("📈")) continue;
+    if (line.startsWith("🔍 Escaneando")) return "Escaneando fuentes de datos...";
+    if (line.includes("completado") && line.includes("✅")) return "Analizando resultados...";
+    if (line.includes("Procesando con sistema")) return "Procesando hallazgos...";
+    if (line.includes("Base de datos inicializada")) return "Guardando resultados...";
+    if (line.includes("Sincronizando estados")) return "Sincronizando con TheHive...";
+    if (line.includes("Enviando alertas")) return "Enviando notificaciones...";
+    if (line.includes("Escaneo completado")) return "Finalizando...";
+    
+    // Si encontramos una línea con emoji o indicador de progreso
+    if (line.match(/^[🔍✅❌📊🔄📋]/)) {
+      // Limpiar y truncar
+      const clean = line.replace(/^[🔍✅❌📊🔄📋⏳⚠️]
+/g, "").trim();
+      if (clean.length > 5 && clean.length < 60) return clean;
+    }
+  }
+  
+  return "Procesando...";
+}
+
 export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<ScannerStatus["result"]>(null);
+  const [logs, setLogs] = useState<string[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const logOffset = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -51,11 +84,16 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
 
   const pollStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/scanner/status");
+      const res = await fetch(`/api/scanner/status?since=${logOffset.current}`);
       const data: ScannerStatus = await res.json();
 
+      if (data.logs.length > 0) {
+        setLogs((prev) => [...prev, ...data.logs]);
+        logOffset.current = data.total_logs;
+      }
+
       if (data.running) {
-        setProgress((p) => Math.min(p + 2, 90));
+        setProgress((p) => Math.min(p + 3, 90));
       }
 
       if (!data.running && data.result) {
@@ -86,6 +124,8 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
     setIsScanning(true);
     setProgress(5);
     setResult(null);
+    setLogs([]);
+    logOffset.current = 0;
 
     try {
       const res = await fetch("/api/scanner/run", { method: "POST" });
@@ -98,7 +138,7 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
       }
 
       setProgress(10);
-      pollRef.current = setInterval(pollStatus, 2000);
+      pollRef.current = setInterval(pollStatus, 1500);
     } catch (error) {
       setIsScanning(false);
       setProgress(100);
@@ -120,6 +160,8 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
   const isSuccess = result?.status === "completed" && result.returncode === 0;
   const isTimeout = result?.status === "timeout";
   const isError = result && !isSuccess && !isTimeout;
+  
+  const currentStep = getCurrentStep(logs);
 
   return (
     <>
@@ -171,7 +213,7 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
             </DialogTitle>
             <DialogDescription>
               {isScanning
-                ? "Esto puede tomar unos momentos..."
+                ? currentStep
                 : isSuccess
                 ? "Los resultados están disponibles"
                 : isError

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect } from "react";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -12,7 +13,7 @@ import {
   Settings,
 } from "lucide-react";
 import { MoustacheIcon } from "./icons";
-import { useFeatures } from "@/hooks/use-api";
+import { useFeatures, useNotifications } from "@/hooks/use-api";
 
 const navItems = [
   {
@@ -54,7 +55,18 @@ interface SidebarProps {
 
 export function Sidebar({ className }: SidebarProps) {
   const pathname = usePathname();
-  const { data: features } = useFeatures();
+  const { data: features, refetch: refetchFeatures } = useFeatures();
+  const { refetch: refetchNotifications } = useNotifications();
+  
+  // Polling para detectar cambios en estado de TheHive
+  useEffect(() => {
+    const interval = setInterval(() => {
+      refetchFeatures();
+      refetchNotifications();
+    }, 3000); // Cada 3 segundos
+    return () => clearInterval(interval);
+  }, [refetchFeatures, refetchNotifications]);
+  
   const thehiveEnabled = features?.thehive_enabled ?? false;
 
   const visibleItems = navItems.filter(
