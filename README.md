@@ -1,8 +1,7 @@
 <h1 align="center">Poirot DSPM</h1>
 <p align="center">
-  <img src="screenshots/logo.png" alt="Poirot" width="480">
+  <img src="screenshots/logo.png" alt="Poirot" width="380">
 </p>
-<h1 align="center">Poirot DSPM</h1>
 <div>
   <p align="center">
     <a href="https://www.loom.com/share/410cab64f9084212aff7911729f8896b">
