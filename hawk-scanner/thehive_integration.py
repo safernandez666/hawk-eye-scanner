@@ -169,7 +169,7 @@ class TheHiveIntegration:
                     json=obs,
                     timeout=10
                 )
-                if response.status_code not in [200, 201]:
+                if response.status_code not in [200, 201, 207]:
                     print(f"   ⚠️  Error agregando observable: {response.status_code}")
             except Exception as e:
                 print(f"   ⚠️  Error agregando observable: {e}")

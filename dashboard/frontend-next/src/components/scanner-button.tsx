@@ -45,8 +45,9 @@ function getCurrentStep(logs: string[]): string {
     const line = logs[i].trim();
     if (!line) continue;
 
-    // Skip líneas decorativas y separadores
+    // Skip líneas decorativas, separadores y warnings internos
     if (line.startsWith("=") || line.startsWith("---")) continue;
+    if (line.includes("Error agregando observable")) continue;
 
     // Progreso de creación de casos en TheHive: "[thehive] Caso 3/5"
     const caseProgress = line.match(/\[thehive\] Caso (\d+)\/(\d+)/);
