@@ -1,24 +1,39 @@
 #!/bin/bash
-# Reset Poirot DSPM: limpia la base de datos SQLite y archivos temporales
-# NOTA: Los casos de TheHive NO se eliminan
+# Reset Poirot DSPM: limpia alertas SQLite, casos TheHive y archivos temporales
+# Cada paso es independiente: si uno falla, los demás se ejecutan igual
 # Uso: ./reset.sh
 
 DB_PATH="${ALERTS_DB_PATH:-hawk-scanner/data/alerts.db}"
-ALERT_COUNT=0
+THEHIVE_URL="${THEHIVE_URL:-http://localhost:9000}"
+THEHIVE_API_KEY="${THEHIVE_API_KEY:-}"
 
-echo "========================================="
-echo "  Poirot DSPM - Reset (Sin TheHive)"
-echo "========================================="
+# Si no hay API key en env, intentar leerla de connection.yml
+if [ -z "$THEHIVE_API_KEY" ] && command -v python3 &>/dev/null; then
+    THEHIVE_API_KEY=$(python3 -c "
+import yaml
+try:
+    with open('hawk-scanner/connection.yml') as f:
+        c = yaml.safe_load(f)
+    print(c.get('notify',{}).get('channels',{}).get('thehive',{}).get('api_key',''))
+except: pass
+" 2>/dev/null)
+fi
+
+ALERT_COUNT=0
+CASE_COUNT=0
+CASES_DELETED=0
+
 echo ""
-echo "⚠️  Los casos en TheHive se mantienen intactos"
+echo "========================================="
+echo "  Poirot DSPM - Reset Completo"
+echo "========================================="
 echo ""
 
 # 1. Limpiar base de datos SQLite
-echo "[1/2] Limpiando base de datos de alertas..."
+echo "[1/3] Limpiando base de datos de alertas..."
 if [ -f "$DB_PATH" ]; then
     ALERT_COUNT=$(sqlite3 "$DB_PATH" "SELECT COUNT(*) FROM alerts;" 2>/dev/null || echo "0")
     echo "  Alertas encontradas: $ALERT_COUNT"
-
     sqlite3 "$DB_PATH" "DELETE FROM alerts;" 2>/dev/null || true
     sqlite3 "$DB_PATH" "DELETE FROM sqlite_sequence WHERE name='alerts';" 2>/dev/null || true
     echo "  ✅ Base de datos limpiada"
@@ -28,8 +43,62 @@ fi
 
 echo ""
 
-# 2. Limpiar archivos JSON temporales
-echo "[2/2] Limpiando archivos temporales..."
+# 2. Eliminar casos en TheHive
+echo "[2/3] Limpiando casos en TheHive..."
+if [ -n "$THEHIVE_API_KEY" ]; then
+    # Verificar conectividad
+    HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+        -H "Authorization: Bearer $THEHIVE_API_KEY" \
+        "$THEHIVE_URL/api/v1/status" 2>/dev/null)
+
+    if [ "$HTTP_CODE" = "200" ]; then
+        echo "  Conectado a TheHive ($THEHIVE_URL)"
+
+        # Listar todos los casos
+        CASES=$(curl -s \
+            -H "Authorization: Bearer $THEHIVE_API_KEY" \
+            -H "Content-Type: application/json" \
+            -d '{"query":[{"_name":"listCase"}]}' \
+            "$THEHIVE_URL/api/v1/query" 2>/dev/null)
+
+        CASE_IDS=$(echo "$CASES" | python3 -c "
+import sys, json
+try:
+    cases = json.load(sys.stdin)
+    for c in cases:
+        print(c['_id'])
+except: pass
+" 2>/dev/null)
+
+        CASE_COUNT=$(echo "$CASE_IDS" | grep -c . 2>/dev/null || echo "0")
+        echo "  Casos encontrados: $CASE_COUNT"
+
+        if [ "$CASE_COUNT" -gt 0 ]; then
+            while IFS= read -r CASE_ID; do
+                [ -z "$CASE_ID" ] && continue
+                DEL_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+                    -X DELETE \
+                    -H "Authorization: Bearer $THEHIVE_API_KEY" \
+                    "$THEHIVE_URL/api/v1/case/$CASE_ID/force" 2>/dev/null)
+                if [ "$DEL_CODE" = "200" ] || [ "$DEL_CODE" = "204" ]; then
+                    CASES_DELETED=$((CASES_DELETED + 1))
+                fi
+            done <<< "$CASE_IDS"
+            echo "  ✅ $CASES_DELETED/$CASE_COUNT casos eliminados"
+        else
+            echo "  ℹ️  No hay casos para eliminar"
+        fi
+    else
+        echo "  ⚠️  TheHive no disponible (HTTP $HTTP_CODE) - se omite"
+    fi
+else
+    echo "  ⚠️  No hay API key configurada - se omite"
+fi
+
+echo ""
+
+# 3. Limpiar archivos JSON temporales
+echo "[3/3] Limpiando archivos temporales..."
 if docker ps 2>/dev/null | grep -q hawk-scanner; then
     docker exec hawk-scanner sh -c "rm -f /app/alerts/*.json 2>/dev/null || true" 2>/dev/null || true
     echo "  ✅ Archivos temporales eliminados"
@@ -44,8 +113,6 @@ echo "========================================="
 echo ""
 echo "Resumen:"
 echo "  - Alertas DB eliminadas: $ALERT_COUNT"
-echo "  - Casos TheHive: preservados (no modificados)"
-echo ""
-echo "El próximo scan creará nuevas alertas en la DB"
-echo "y casos nuevos en TheHive (si hay hallazgos críticos)"
+echo "  - Casos TheHive eliminados: $CASES_DELETED"
+echo "  - Archivos temporales: limpiados"
 echo ""
