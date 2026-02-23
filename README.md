@@ -260,7 +260,7 @@ Este proyecto es para **fines educativos y de investigacion en seguridad**. Las 
 
 ## Creditos
 
-El motor de escaneo esta basado en [Hawk Eye](https://github.com/rohitcoder/hawk-eye) de **[Rohit Kumar](https://www.linkedin.com/in/rohitcoder/)**.
+El motor de escaneo esta basado en [Hawk Eye](https://github.com/rohitcoder/hawk-eye) de **[Rohit Kumar](https://www.linkedin.com/in/rohitcoder/)**. Gracias Rohit por compartir siempre con buena energia y por construir una herramienta tan util para la comunidad.
 
 ---
 
