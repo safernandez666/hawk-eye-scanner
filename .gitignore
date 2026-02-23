@@ -54,6 +54,11 @@ build/
 *.bak
 *.old
 
+# Node
+node_modules/
+.next/
+package-lock.json
+
 # Temporal
 *.tmp
 .pytest_cache/
