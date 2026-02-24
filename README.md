@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="screenshots/logo.png" alt="Poirot DSPM" width="280">
+  <img src="screenshots/logo.png" alt="Poirot DSPM" width="380">
 </p>
 
 <h1 align="center">Poirot DSPM</h1>
