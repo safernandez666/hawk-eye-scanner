@@ -71,6 +71,12 @@ export interface ScannerStatus {
   error?: string;
 }
 
+export interface OllamaConfig {
+  enabled: boolean;
+  url: string;
+  model: string;
+}
+
 export interface NotificationChannel {
   enabled: boolean;
   severity_filter: string[];

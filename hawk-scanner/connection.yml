@@ -1,19 +1,23 @@
 notify:
   redacted: true
   suppress_duplicates: true
+  ollama:
+    enabled: true
+    url: http://host.docker.internal:11434
+    model: llama3.1:latest
   channels:
     smtp:
-      enabled: false
-      host: ''
-      port: 587
-      use_tls: true
-      username: ''
-      password: ''
-      from_address: ''
-      to_addresses: ''
+      enabled: true
       severity_filter:
       - CRITICAL
       - HIGH
+      host: smtp.hostinger.com
+      port: 587
+      use_tls: true
+      username: sfernandez@ironbox.com.ar
+      password: Jupiter34*%??
+      from_address: sfernandez@ironbox.com.ar
+      to_addresses: sfernandez@ironbox.com.ar
     slack:
       enabled: false
       webhook_url: ''
@@ -45,7 +49,7 @@ notify:
       - CRITICAL
       - HIGH
       url: http://thehive:9000
-      api_key: ''
+      api_key: FEdjJZ0rxWGZoXsIPOAdVmuOivmgo3h9
       create_cases: true
 sources:
   mysql:
@@ -61,4 +65,3 @@ sources:
       secret_key: test
       bucket_name: poc-bucket
       endpoint_url: http://localstack:4566
-      cache: false

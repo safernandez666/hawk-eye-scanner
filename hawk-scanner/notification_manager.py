@@ -12,6 +12,7 @@ from email.mime.multipart import MIMEMultipart
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
+import requests
 import yaml
 
 CONFIG_PATH = os.environ.get('CONNECTION_PATH', 'connection.yml')
@@ -20,11 +21,14 @@ CONFIG_PATH = os.environ.get('CONNECTION_PATH', 'connection.yml')
 class NotificationManager:
     def __init__(self, config_path=None):
         self.channels = {}
+        self.ollama_config = {}
         path = config_path or CONFIG_PATH
         try:
             with open(path, 'r') as f:
                 config = yaml.safe_load(f) or {}
-            self.channels = config.get('notify', {}).get('channels', {})
+            notify_config = config.get('notify', {})
+            self.channels = notify_config.get('channels', {})
+            self.ollama_config = notify_config.get('ollama', {})
         except Exception as e:
             print(f"[notifications] No se pudo leer config: {e}")
 
@@ -46,12 +50,17 @@ class NotificationManager:
                 continue
             try:
                 if name == 'thehive':
+                    # TheHive siempre se ejecuta (hace sync de casos existentes)
                     cases_created = self._send_thehive(cfg, new_alerts, alert_mgr)
                     results[name] = {'status': 'sent', 'cases_created': cases_created}
                     print(f"[notifications] thehive: {cases_created} casos creados")
                     continue
-                elif name == 'smtp':
-                    self._send_smtp(cfg, text)
+                # Para el resto de canales, solo notificar si hay alertas nuevas
+                if not new_alerts:
+                    results[name] = {'status': 'skipped', 'reason': 'no new alerts'}
+                    continue
+                if name == 'smtp':
+                    self._send_smtp(cfg, text, summary)
                 elif name == 'slack':
                     self._send_slack(cfg, text, summary)
                 elif name == 'teams':
@@ -87,7 +96,7 @@ class NotificationManager:
 
         try:
             if channel_name == 'smtp':
-                self._send_smtp(channel_config, text)
+                self._send_smtp(channel_config, text, fake_summary)
             elif channel_name == 'slack':
                 self._send_slack(channel_config, text, fake_summary)
             elif channel_name == 'teams':
@@ -156,12 +165,22 @@ class NotificationManager:
 
         return "\n".join(lines)
 
-    def _send_smtp(self, cfg, text):
-        msg = MIMEMultipart()
+    def _send_smtp(self, cfg, text, summary=None):
+        msg = MIMEMultipart('alternative')
         msg['From'] = cfg.get('from_address', '')
         msg['To'] = cfg.get('to_addresses', '')
         msg['Subject'] = 'Poirot DSPM - Scan Report'
+
+        # Always attach plain text as fallback
         msg.attach(MIMEText(text, 'plain'))
+
+        # If Ollama enabled, generate and attach HTML
+        if self.ollama_config.get('enabled') and summary:
+            try:
+                html = self._generate_html_with_ollama(text, summary)
+                msg.attach(MIMEText(html, 'html'))
+            except Exception as e:
+                print(f"[ollama] HTML generation failed, using plain text: {e}")
 
         host = cfg.get('host', 'localhost')
         port = int(cfg.get('port', 587))
@@ -177,6 +196,173 @@ class NotificationManager:
         to_list = [a.strip() for a in msg['To'].split(',') if a.strip()]
         server.sendmail(msg['From'], to_list, msg.as_string())
         server.quit()
+
+    def _generate_html_with_ollama(self, plain_text, summary):
+        """Build HTML email with deterministic template + Ollama-generated analysis."""
+        from datetime import datetime
+
+        by_sev = summary.get('by_severity', {})
+        by_src = summary.get('by_source', {})
+        by_pat = summary.get('by_pattern', {})
+        total = summary.get('total_findings', 0)
+        top_patterns = sorted(by_pat.items(), key=lambda x: x[1], reverse=True)[:7]
+        fecha = datetime.now().strftime('%d/%m/%Y %H:%M')
+
+        print(f"[ollama] Summary data: total={total}, by_sev={by_sev}, by_src={by_src}, by_pat={by_pat}")
+
+        # --- Ask Ollama ONLY for the analysis paragraph ---
+        analysis = self._get_ollama_analysis(summary)
+
+        # --- Build severity cards ---
+        sev_colors = {
+            'CRITICAL': ('#dc2626', '#fef2f2', '#991b1b'),
+            'HIGH': ('#ea580c', '#fff7ed', '#9a3412'),
+            'MEDIUM': ('#ca8a04', '#fefce8', '#854d0e'),
+            'LOW': ('#16a34a', '#f0fdf4', '#166534'),
+        }
+        severity_cards = ''
+        for sev in ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']:
+            count = by_sev.get(sev, 0)
+            border, bg, text_color = sev_colors[sev]
+            severity_cards += (
+                f'<div style="flex:1;min-width:100px;background:{bg};border:1px solid {border};'
+                f'border-radius:8px;padding:16px;text-align:center;">'
+                f'<div style="font-size:28px;font-weight:700;color:{border};">{count}</div>'
+                f'<div style="font-size:12px;color:{text_color};margin-top:4px;font-weight:600;">{sev}</div>'
+                f'</div>'
+            )
+
+        # --- Build patterns table ---
+        pattern_rows = ''
+        for i, (pat, count) in enumerate(top_patterns):
+            bg = '#f9fafb' if i % 2 == 0 else '#ffffff'
+            pattern_rows += (
+                f'<tr style="background:{bg};">'
+                f'<td style="padding:10px 12px;font-size:14px;color:#1f2937;">{pat}</td>'
+                f'<td style="padding:10px 12px;font-size:14px;color:#1f2937;text-align:right;font-weight:600;">{count}</td>'
+                f'</tr>'
+            )
+
+        # --- Build sources table ---
+        src_labels = {
+            'mysql': ('MySQL', '&#128450;'),
+            's3': ('Amazon S3', '&#9729;'),
+            'gdrive': ('Google Drive', '&#128193;'),
+            'onedrive': ('OneDrive', '&#128193;'),
+        }
+        source_rows = ''
+        for i, (src, count) in enumerate(by_src.items()):
+            label, icon = src_labels.get(src, (src, '&#128196;'))
+            bg = '#f9fafb' if i % 2 == 0 else '#ffffff'
+            source_rows += (
+                f'<tr style="background:{bg};">'
+                f'<td style="padding:10px 12px;font-size:14px;color:#1f2937;">{icon} {label}</td>'
+                f'<td style="padding:10px 12px;font-size:14px;color:#1f2937;text-align:right;font-weight:600;">{count}</td>'
+                f'</tr>'
+            )
+
+        html = f'''<div style="background:#f5f7fa;padding:40px 20px;font-family:system-ui,-apple-system,sans-serif;">
+  <div style="max-width:600px;margin:0 auto;background:#ffffff;border-radius:12px;box-shadow:0 4px 6px rgba(0,0,0,0.1);overflow:hidden;">
+    <div style="background:linear-gradient(135deg,#1e3a8a 0%,#3b82f6 100%);padding:30px;text-align:center;color:white;">
+      <h1 style="margin:0;font-size:24px;font-weight:700;">Poirot DSPM</h1>
+      <p style="margin:8px 0 0 0;opacity:0.9;font-size:14px;">Reporte de Seguridad &mdash; {fecha}</p>
+    </div>
+    <div style="padding:24px 30px;background:#f8fafc;border-bottom:1px solid #e5e7eb;">
+      <h2 style="margin:0 0 16px 0;font-size:18px;color:#1f2937;">Resumen &mdash; {total} hallazgos</h2>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
+        {severity_cards}
+      </div>
+    </div>
+    <div style="padding:24px 30px;border-bottom:1px solid #e5e7eb;">
+      <h3 style="margin:0 0 12px 0;font-size:16px;color:#1f2937;">Top Patrones Detectados</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="border-bottom:2px solid #e5e7eb;">
+          <th style="padding:8px 12px;text-align:left;font-size:12px;color:#6b7280;text-transform:uppercase;">Patron</th>
+          <th style="padding:8px 12px;text-align:right;font-size:12px;color:#6b7280;text-transform:uppercase;">Cantidad</th>
+        </tr>
+        {pattern_rows}
+      </table>
+    </div>
+    <div style="padding:24px 30px;border-bottom:1px solid #e5e7eb;">
+      <h3 style="margin:0 0 12px 0;font-size:16px;color:#1f2937;">Fuentes Escaneadas</h3>
+      <table style="width:100%;border-collapse:collapse;">
+        <tr style="border-bottom:2px solid #e5e7eb;">
+          <th style="padding:8px 12px;text-align:left;font-size:12px;color:#6b7280;text-transform:uppercase;">Fuente</th>
+          <th style="padding:8px 12px;text-align:right;font-size:12px;color:#6b7280;text-transform:uppercase;">Hallazgos</th>
+        </tr>
+        {source_rows}
+      </table>
+    </div>
+    <div style="padding:24px 30px;">
+      <div style="background:#eff6ff;border-left:4px solid #3b82f6;padding:20px;border-radius:0 8px 8px 0;">
+        <h4 style="margin:0 0 10px 0;color:#1e40af;font-size:14px;">Analisis y Recomendaciones</h4>
+        <p style="margin:0;color:#1f2937;font-size:14px;line-height:1.6;">{analysis}</p>
+      </div>
+    </div>
+    <div style="padding:20px;text-align:center;border-top:1px solid #e5e7eb;background:#f9fafb;">
+      <p style="margin:0;color:#9ca3af;font-size:12px;">Generado por Poirot DSPM</p>
+    </div>
+  </div>
+</div>'''
+        return html
+
+    def _get_ollama_analysis(self, summary):
+        """Ask Ollama to generate only the analysis paragraph."""
+        ollama_cfg = self.ollama_config
+        url = ollama_cfg.get('url', 'http://host.docker.internal:11434')
+        model = ollama_cfg.get('model', 'llama3.2')
+
+        by_sev = summary.get('by_severity', {})
+        by_src = summary.get('by_source', {})
+        by_pat = summary.get('by_pattern', {})
+        top_patterns = sorted(by_pat.items(), key=lambda x: x[1], reverse=True)[:7]
+
+        src_labels = {'mysql': 'base de datos MySQL', 's3': 'bucket S3',
+                      'gdrive': 'Google Drive', 'onedrive': 'OneDrive'}
+        source_lines = [f"- {src_labels.get(s, s)}: {c} hallazgos" for s, c in by_src.items()]
+        pattern_lines = [f"- {p}: {c} detecciones" for p, c in top_patterns]
+
+        prompt = f"""Sos un analista de ciberseguridad. Escribi un parrafo de analisis (4-5 oraciones) en espanol sobre este escaneo de datos sensibles.
+
+DATOS:
+Total: {summary.get('total_findings', 0)} hallazgos
+Severidad: CRITICAL={by_sev.get('CRITICAL', 0)}, HIGH={by_sev.get('HIGH', 0)}, MEDIUM={by_sev.get('MEDIUM', 0)}, LOW={by_sev.get('LOW', 0)}
+
+Fuentes escaneadas:
+{chr(10).join(source_lines)}
+
+Patrones detectados:
+{chr(10).join(pattern_lines)}
+
+INSTRUCCIONES:
+1. Menciona CADA fuente por nombre (ej: "En la base de datos MySQL se detectaron...", "En el bucket S3 se encontraron...")
+2. Destaca los patrones mas criticos y su riesgo real (ej: claves privadas expuestas permiten acceso no autorizado)
+3. Da 2-3 recomendaciones concretas y accionables
+4. Escribe SOLO el parrafo, sin titulos, sin HTML, sin markdown, sin bullet points. Texto plano corrido."""
+
+        resp = requests.post(
+            f"{url}/api/chat",
+            json={
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "stream": False,
+            },
+            timeout=120,
+        )
+        resp.raise_for_status()
+        analysis = resp.json()["message"]["content"].strip()
+
+        # Clean up: remove "Nota:" disclaimers the model sometimes appends
+        import re
+        for marker in ['Nota:', 'Note:', 'Disclaimer:', 'NOTA:']:
+            idx = analysis.find(marker)
+            if idx > 0:
+                analysis = analysis[:idx].strip()
+
+        # Remove any HTML tags the model might inject
+        analysis = re.sub(r'<[^>]+>', '', analysis)
+        print(f"[ollama] Analysis generated ({len(analysis)} chars)")
+        return analysis
 
     def _send_slack(self, cfg, text, summary):
         by_sev = summary.get('by_severity', {})

@@ -1031,7 +1031,7 @@ def update_notification_channel(channel):
 
 @app.route('/api/config/notifications/<channel>/test', methods=['POST'])
 def test_notification_channel(channel):
-    """Envia una notificacion de prueba por el canal indicado"""
+    """Envia una notificacion de prueba por el canal indicado (async para SMTP+Ollama)"""
     try:
         valid_channels = ['thehive', 'smtp', 'slack', 'teams', 'webhook']
         if channel not in valid_channels:
@@ -1050,8 +1050,67 @@ def test_notification_channel(channel):
 
         from notification_manager import NotificationManager
         nm = NotificationManager(config_path=None)
-        result = nm.send_test(channel, channel_config)
-        return jsonify(result)
+
+        # Run in background thread so the UI doesn't block
+        def _send():
+            try:
+                result = nm.send_test(channel, channel_config)
+                print(f"[test-notification] {channel}: {result.get('status')}")
+            except Exception as e:
+                print(f"[test-notification] {channel}: error - {e}")
+
+        thread = threading.Thread(target=_send, daemon=True)
+        thread.start()
+        return jsonify({'status': 'sent', 'message': 'Enviando en background...'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==========================================
+# OLLAMA CONFIG ENDPOINTS
+# ==========================================
+
+@app.route('/api/ollama/models', methods=['POST'])
+def get_ollama_models():
+    """Fetch available models from an Ollama server."""
+    try:
+        data = request.get_json() or {}
+        url = data.get('url', 'http://host.docker.internal:11434')
+        resp = requests.get(f"{url}/api/tags", timeout=10)
+        resp.raise_for_status()
+        models = resp.json().get('models', [])
+        return jsonify({'models': [m['name'] for m in models]})
+    except Exception as e:
+        return jsonify({'error': str(e), 'models': []}), 502
+
+
+@app.route('/api/config/ollama', methods=['GET'])
+def get_ollama_config():
+    """Read Ollama config from connection.yml"""
+    try:
+        config = read_yaml(CONNECTION_PATH)
+        ollama = config.get('notify', {}).get('ollama', {})
+        return jsonify(ollama)
+    except FileNotFoundError:
+        return jsonify({})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/config/ollama', methods=['PUT'])
+def update_ollama_config():
+    """Update Ollama config in connection.yml"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Body JSON requerido'}), 400
+
+        config = read_yaml(CONNECTION_PATH)
+        if 'notify' not in config:
+            config['notify'] = {}
+        config['notify']['ollama'] = data
+        write_yaml(CONNECTION_PATH, config)
+        return jsonify({'message': 'Ollama config updated'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

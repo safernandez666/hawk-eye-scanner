@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNotifications, updateNotificationChannel, testNotificationChannel } from "@/hooks/use-api";
-import type { NotificationChannel } from "@/types";
+import { useNotifications, updateNotificationChannel, testNotificationChannel, useOllamaConfig, updateOllamaConfig, fetchOllamaModels } from "@/hooks/use-api";
+import type { NotificationChannel, OllamaConfig } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Mail, MessageSquare, Globe, Send, Save, Loader2, Plug } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Mail, MessageSquare, Globe, Send, Save, Loader2, Plug, Bot } from "lucide-react";
 
 // Icono personalizado de abeja para TheHive
 const BeeIcon = ({ className }: { className?: string }) => (
@@ -103,9 +104,17 @@ function getDefaultChannel(name: string): NotificationChannel {
 
 export default function SettingsPage() {
   const { data, loading, refetch } = useNotifications();
+  const { data: ollamaData, loading: ollamaLoading, refetch: refetchOllama } = useOllamaConfig();
   const [localChannels, setLocalChannels] = useState<Record<string, NotificationChannel>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState("thehive");
+
+  // Ollama state
+  const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({ enabled: false, url: "http://ollama:11434", model: "llama3.2:3b" });
+  const [ollamaModels, setOllamaModels] = useState<string[]>([]);
+  const [loadingModels, setLoadingModels] = useState(false);
+  const [savingOllama, setSavingOllama] = useState(false);
 
   useEffect(() => {
     if (data?.channels) {
@@ -116,6 +125,16 @@ export default function SettingsPage() {
       setLocalChannels(merged);
     }
   }, [data]);
+
+  useEffect(() => {
+    if (ollamaData) {
+      setOllamaConfig({
+        enabled: ollamaData.enabled ?? false,
+        url: ollamaData.url || "http://ollama:11434",
+        model: ollamaData.model || "llama3.2:3b",
+      });
+    }
+  }, [ollamaData]);
 
   const updateField = (channel: string, field: string, value: unknown) => {
     setLocalChannels((prev) => ({
@@ -155,7 +174,7 @@ export default function SettingsPage() {
         if (channel === "thehive") {
           toast.success(`Conexión exitosa con "${CHANNEL_META[channel].label}"`);
         } else {
-          toast.success(`Prueba enviada por "${CHANNEL_META[channel].label}"`);
+          toast.success(`Prueba enviandose por "${CHANNEL_META[channel].label}" (puede demorar unos segundos)`);
         }
       } else {
         toast.error(`Error: ${result.error || "Fallo al conectar"}`);
@@ -167,7 +186,38 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading) {
+  const handleLoadModels = async () => {
+    setLoadingModels(true);
+    try {
+      const result = await fetchOllamaModels(ollamaConfig.url);
+      setOllamaModels(result.models || []);
+      if (result.models?.length > 0) {
+        toast.success(`${result.models.length} modelos encontrados`);
+      } else {
+        toast.warning("No se encontraron modelos en el servidor");
+      }
+    } catch {
+      toast.error("No se pudo conectar con Ollama");
+      setOllamaModels([]);
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  const handleSaveOllama = async () => {
+    setSavingOllama(true);
+    try {
+      await updateOllamaConfig(ollamaConfig);
+      toast.success("Configuracion de Ollama guardada");
+      refetchOllama();
+    } catch (err: any) {
+      toast.error(err.message || "Error al guardar");
+    } finally {
+      setSavingOllama(false);
+    }
+  };
+
+  if (loading || ollamaLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-full" />
@@ -178,14 +228,18 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-6">
-      <Tabs defaultValue="thehive" className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-6">
           {Object.entries(CHANNEL_META).map(([key, meta]) => (
             <TabsTrigger key={key} value={key} className="flex items-center gap-2">
               <meta.icon className="h-4 w-4" />
               {meta.label}
             </TabsTrigger>
           ))}
+          <TabsTrigger value="ollama" className="flex items-center gap-2">
+            <Bot className="h-4 w-4" />
+            AI (Ollama)
+          </TabsTrigger>
         </TabsList>
 
         {Object.entries(CHANNEL_META).map(([channelName, meta]) => {
@@ -315,6 +369,97 @@ export default function SettingsPage() {
             </TabsContent>
           );
         })}
+
+        {/* Ollama Tab */}
+        <TabsContent value="ollama">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Bot className="h-5 w-5" />
+                  <CardTitle>AI (Ollama)</CardTitle>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="ollama-enabled" className="text-sm">
+                    {ollamaConfig.enabled ? "Habilitado" : "Deshabilitado"}
+                  </Label>
+                  <Switch
+                    id="ollama-enabled"
+                    checked={ollamaConfig.enabled}
+                    onCheckedChange={(v) => setOllamaConfig((prev) => ({ ...prev, enabled: v }))}
+                  />
+                </div>
+              </div>
+              <CardDescription>
+                Genera emails HTML profesionales con analisis contextual usando Ollama (mejora las notificaciones SMTP)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="ollama-url">URL del servidor Ollama</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="ollama-url"
+                      type="text"
+                      placeholder="http://ollama:11434"
+                      value={ollamaConfig.url}
+                      onChange={(e) => setOllamaConfig((prev) => ({ ...prev, url: e.target.value }))}
+                      className="flex-1"
+                    />
+                    <Button variant="outline" onClick={handleLoadModels} disabled={loadingModels}>
+                      {loadingModels ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Globe className="mr-2 h-4 w-4" />
+                      )}
+                      Cargar Modelos
+                    </Button>
+                  </div>
+                </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label htmlFor="ollama-model">Modelo</Label>
+                  {ollamaModels.length > 0 ? (
+                    <Select
+                      value={ollamaConfig.model}
+                      onValueChange={(v) => setOllamaConfig((prev) => ({ ...prev, model: v }))}
+                    >
+                      <SelectTrigger id="ollama-model">
+                        <SelectValue placeholder="Seleccionar modelo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ollamaModels.map((m) => (
+                          <SelectItem key={m} value={m}>{m}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="ollama-model"
+                      type="text"
+                      placeholder="llama3.2:3b"
+                      value={ollamaConfig.model}
+                      onChange={(e) => setOllamaConfig((prev) => ({ ...prev, model: e.target.value }))}
+                    />
+                  )}
+                  <p className="text-sm text-muted-foreground">
+                    Haz clic en &quot;Cargar Modelos&quot; para listar los modelos disponibles en el servidor
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button onClick={handleSaveOllama} disabled={savingOllama}>
+                  {savingOllama ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Guardar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   );

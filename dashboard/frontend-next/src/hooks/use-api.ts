@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Alert, Stats, Pattern, Source, TimelineEntry, TheHiveCase, ScannerStatus, NotificationChannel } from "@/types";
+import type { Alert, Stats, Pattern, Source, TimelineEntry, TheHiveCase, ScannerStatus, NotificationChannel, OllamaConfig } from "@/types";
 
 const API_BASE = "/api";
 
@@ -127,5 +127,26 @@ export async function testNotificationChannel(channel: string, config: Notificat
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
+  });
+}
+
+// Ollama
+export function useOllamaConfig() {
+  return useApi<OllamaConfig>(`${API_BASE}/config/ollama`);
+}
+
+export async function updateOllamaConfig(config: OllamaConfig) {
+  return fetcher<{ message: string }>(`${API_BASE}/config/ollama`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
+  });
+}
+
+export async function fetchOllamaModels(url: string) {
+  return fetcher<{ models: string[] }>(`${API_BASE}/ollama/models`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
   });
 }
