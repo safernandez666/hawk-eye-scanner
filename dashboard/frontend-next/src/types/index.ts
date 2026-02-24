@@ -77,6 +77,12 @@ export interface OllamaConfig {
   model: string;
 }
 
+export interface SchedulerConfig {
+  enabled: boolean;
+  interval_hours: number;
+  next_run?: string | null;
+}
+
 export interface NotificationChannel {
   enabled: boolean;
   severity_filter: string[];
@@ -91,6 +97,7 @@ export interface NotificationChannel {
   username?: string;
   password?: string;
   from_address?: string;
+  from_name?: string;
   to_addresses?: string;
   // Slack / Teams
   webhook_url?: string;

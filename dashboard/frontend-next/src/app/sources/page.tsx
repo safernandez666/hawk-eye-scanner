@@ -37,8 +37,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Database, CheckCircle, XCircle, Plus, Trash2 } from "lucide-react";
+// Tabs removed - using Select dropdown for source type selection
+import { Database, CheckCircle, XCircle, Plus, Trash2, Cloud, HardDrive, Info } from "lucide-react";
 import { toast } from "sonner";
 
 interface Source {
@@ -50,7 +50,7 @@ interface Source {
 }
 
 const SOURCE_TYPES = [
-  { value: "mysql", label: "MySQL", fields: [
+  { value: "mysql", label: "MySQL", icon: Database, fields: [
     { name: "host", label: "Host", type: "text", placeholder: "localhost" },
     { name: "port", label: "Puerto", type: "number", placeholder: "3306" },
     { name: "database", label: "Base de Datos", type: "text", placeholder: "mydb" },
@@ -59,11 +59,22 @@ const SOURCE_TYPES = [
     { name: "limit_start", label: "Límite Inicio", type: "number", placeholder: "0" },
     { name: "limit_end", label: "Límite Fin", type: "number", placeholder: "10000" },
   ]},
-  { value: "s3", label: "Amazon S3", fields: [
+  { value: "s3", label: "Amazon S3", icon: Cloud, fields: [
     { name: "access_key", label: "Access Key", type: "text", placeholder: "AKIA..." },
     { name: "secret_key", label: "Secret Key", type: "password", placeholder: "********" },
     { name: "bucket_name", label: "Nombre del Bucket", type: "text", placeholder: "my-bucket" },
     { name: "endpoint_url", label: "Endpoint URL", type: "text", placeholder: "https://s3.amazonaws.com" },
+  ]},
+  { value: "gdrive", label: "Google Drive", icon: HardDrive, fields: [
+    { name: "credentials_file", label: "Credentials File Path", type: "text", placeholder: "/app/credentials/gdrive_credentials.json" },
+    { name: "folder_name", label: "Folder Name (vacio = todos)", type: "text", placeholder: "" },
+  ]},
+  { value: "onedrive", label: "OneDrive", icon: Cloud, fields: [
+    { name: "client_id", label: "Client ID (Azure)", type: "text", placeholder: "your-azure-app-client-id" },
+    { name: "client_secret", label: "Client Secret", type: "password", placeholder: "********" },
+    { name: "tenant_id", label: "Tenant ID", type: "text", placeholder: "common" },
+    { name: "refresh_token", label: "Refresh Token", type: "password", placeholder: "your-refresh-token" },
+    { name: "folder_path", label: "Folder Path (vacio = raiz)", type: "text", placeholder: "Documents/sensitive" },
   ]},
 ];
 
@@ -228,6 +239,8 @@ export default function SourcesPage() {
                     <TableCell>
                       {(source.config.host as string) ||
                         (source.config.endpoint_url as string) ||
+                        (source.config.credentials_file as string) ||
+                        (source.config.folder_path as string) ||
                         "N/A"}
                     </TableCell>
                     <TableCell>
@@ -238,6 +251,14 @@ export default function SourcesPage() {
                         >
                           <CheckCircle className="mr-1 h-3 w-3" />
                           Conectado
+                        </Badge>
+                      ) : source.status === "configured" ? (
+                        <Badge
+                          variant="outline"
+                          className="text-blue-600 border-blue-600"
+                        >
+                          <Info className="mr-1 h-3 w-3" />
+                          Configurado
                         </Badge>
                       ) : (
                         <Badge
@@ -274,51 +295,58 @@ export default function SourcesPage() {
 
       {/* Dialog: Agregar Fuente */}
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
-        <DialogContent className="sm:max-w-[500px]">
+        <DialogContent className="sm:max-w-[550px] max-h-[85vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Agregar Nueva Fuente</DialogTitle>
             <DialogDescription>
               Configura una nueva fuente de datos en connection.yml
             </DialogDescription>
           </DialogHeader>
-          
-          <Tabs value={sourceType} onValueChange={setSourceType} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="mysql">MySQL</TabsTrigger>
-              <TabsTrigger value="s3">Amazon S3</TabsTrigger>
-            </TabsList>
-            
-            {SOURCE_TYPES.map((type) => (
-              <TabsContent key={type.value} value={type.value} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="source-name">Nombre de la Fuente</Label>
+
+          <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+            <div className="space-y-2">
+              <Label>Tipo de Fuente</Label>
+              <Select value={sourceType} onValueChange={(v) => { setSourceType(v); setFormConfig({}); }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Seleccionar tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SOURCE_TYPES.map((type) => (
+                    <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="source-name">Nombre de la Fuente</Label>
+              <Input
+                id="source-name"
+                placeholder={`Ej: ${sourceType}_production`}
+                value={sourceName}
+                onChange={(e) => setSourceName(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Identificador único para esta fuente
+              </p>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {currentType?.fields.map((field) => (
+                <div key={field.name} className="space-y-2">
+                  <Label htmlFor={field.name}>{field.label}</Label>
                   <Input
-                    id="source-name"
-                    placeholder={`Ej: ${type.value}_production`}
-                    value={sourceName}
-                    onChange={(e) => setSourceName(e.target.value)}
+                    id={field.name}
+                    type={field.type}
+                    placeholder={field.placeholder}
+                    value={formConfig[field.name] || ""}
+                    onChange={(e) => updateFormConfig(field.name, e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Identificador único para esta fuente
-                  </p>
                 </div>
-                
-                {type.fields.map((field) => (
-                  <div key={field.name} className="space-y-2">
-                    <Label htmlFor={field.name}>{field.label}</Label>
-                    <Input
-                      id={field.name}
-                      type={field.type}
-                      placeholder={field.placeholder}
-                      value={formConfig[field.name] || ""}
-                      onChange={(e) => updateFormConfig(field.name, e.target.value)}
-                    />
-                  </div>
-                ))}
-              </TabsContent>
-            ))}
-          </Tabs>
-          
+              ))}
+            </div>
+          </div>
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)}>
               Cancelar

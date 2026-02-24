@@ -8,6 +8,7 @@ import sqlite3
 import io
 import csv
 import json
+import shutil
 import socket
 import subprocess
 import threading
@@ -16,10 +17,14 @@ import requests
 from datetime import datetime
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
+from apscheduler.schedulers.background import BackgroundScheduler
 import os
 
 app = Flask(__name__)
 CORS(app)
+
+scheduler = BackgroundScheduler()
+scheduler.start()
 
 # Path a la base de datos de hawk-scanner
 DB_PATH = os.environ.get('ALERTS_DB_PATH', '/app/data/alerts.db')
@@ -569,6 +574,8 @@ def add_config_source():
         required = {
             'mysql': ['host', 'port', 'user', 'password', 'database'],
             's3': ['access_key', 'secret_key', 'bucket_name', 'endpoint_url'],
+            'gdrive': ['credentials_file'],
+            'onedrive': ['client_id', 'client_secret', 'tenant_id', 'refresh_token'],
         }
         if source_type in required:
             missing = [f for f in required[source_type] if not source_config.get(f)]
@@ -764,12 +771,15 @@ _scan_state = {
 _scan_lock = threading.Lock()
 
 
-def _run_scan_background(docker_path):
+def _run_scan_background(docker_path, sources=None):
     """Ejecuta el scan en background y actualiza _scan_state"""
     global _scan_state
     try:
+        cmd = [docker_path, 'exec', 'hawk-scanner', 'python3', '-u', '/app/run_hawk_scanner.py']
+        if sources:
+            cmd.extend(['--sources', ','.join(sources)])
         process = subprocess.Popen(
-            [docker_path, 'exec', 'hawk-scanner', 'python3', '-u', '/app/run_hawk_scanner.py'],
+            cmd,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True
         )
@@ -799,22 +809,59 @@ def _run_scan_background(docker_path):
             _scan_state['result'] = {'status': 'error', 'message': str(e)}
 
 
+def _scheduled_scan():
+    """Triggered by APScheduler - runs scan if not already running."""
+    global _scan_state
+    with _scan_lock:
+        if _scan_state['running']:
+            print("[scheduler] Scan already running, skipping")
+            return
+    docker_path = shutil.which('docker')
+    if not docker_path:
+        print("[scheduler] Docker not found")
+        return
+    with _scan_lock:
+        _scan_state['running'] = True
+        _scan_state['started_at'] = datetime.now().isoformat()
+        _scan_state['result'] = None
+        _scan_state['logs'] = []
+    thread = threading.Thread(target=_run_scan_background, args=(docker_path, None), daemon=True)
+    thread.start()
+    print(f"[scheduler] Scan triggered at {datetime.now().isoformat()}")
+
+
+def _init_scheduler():
+    """Read scheduler config from connection.yml and set up APScheduler job."""
+    try:
+        config = read_yaml(CONNECTION_PATH)
+    except Exception:
+        return
+    sched_cfg = config.get('scheduler', {})
+    if sched_cfg.get('enabled') and sched_cfg.get('interval_hours'):
+        hours = sched_cfg['interval_hours']
+        scheduler.add_job(_scheduled_scan, 'interval', hours=hours, id='scan_job', replace_existing=True)
+        print(f"[scheduler] Scan scheduled every {hours}h")
+
+
 @app.route('/api/scanner/run', methods=['POST'])
 def scanner_run():
     """Inicia el scanner en background y retorna inmediatamente"""
-    import shutil
     global _scan_state
 
     with _scan_lock:
         if _scan_state['running']:
             return jsonify({'status': 'already_running', 'message': 'Ya hay un escaneo en curso'}), 409
 
-    docker_path = shutil.which('docker')
+    docker_path = shutil.which('docker')  # shutil imported at top
     if not docker_path:
         return jsonify({
             'status': 'error',
             'message': 'Docker no encontrado en el PATH.'
         }), 500
+
+    # Leer fuentes seleccionadas del body
+    data = request.get_json() or {}
+    sources = data.get('sources')  # Lista de fuentes, ej: ['mysql', 's3']
 
     with _scan_lock:
         _scan_state['running'] = True
@@ -822,10 +869,11 @@ def scanner_run():
         _scan_state['result'] = None
         _scan_state['logs'] = []
 
-    thread = threading.Thread(target=_run_scan_background, args=(docker_path,), daemon=True)
+    thread = threading.Thread(target=_run_scan_background, args=(docker_path, sources), daemon=True)
     thread.start()
 
-    return jsonify({'status': 'started', 'message': 'Escaneo iniciado'})
+    source_msg = f" ({', '.join(sources)})" if sources else ""
+    return jsonify({'status': 'started', 'message': f'Escaneo iniciado{source_msg}'})
 
 
 @app.route('/api/scanner/status', methods=['GET'])
@@ -976,6 +1024,9 @@ def sources_health():
                             entry['message'] = 'No endpoint_url configurado'
                         else:
                             entry['message'] = 'No bucket_name configurado'
+                    elif source_type in ('gdrive', 'onedrive'):
+                        entry['status'] = 'configured'
+                        entry['message'] = 'Configurado (verificacion requiere autenticacion)'
                     else:
                         entry['message'] = 'Tipo no soportado para health check'
                 except Exception as e:
@@ -1115,6 +1166,77 @@ def update_ollama_config():
         return jsonify({'error': str(e)}), 500
 
 
+# ==========================================
+# SCHEDULER CONFIG ENDPOINTS
+# ==========================================
+
+@app.route('/api/config/scheduler', methods=['GET'])
+def get_scheduler_config():
+    """Read scheduler config from connection.yml"""
+    try:
+        config = read_yaml(CONNECTION_PATH)
+        sched = config.get('scheduler', {'enabled': False, 'interval_hours': 24})
+        # Include next run time if job exists
+        job = scheduler.get_job('scan_job')
+        next_run = None
+        if job and job.next_run_time:
+            next_run = job.next_run_time.isoformat()
+        return jsonify({
+            'enabled': sched.get('enabled', False),
+            'interval_hours': sched.get('interval_hours', 24),
+            'next_run': next_run,
+        })
+    except FileNotFoundError:
+        return jsonify({'enabled': False, 'interval_hours': 24, 'next_run': None})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/config/scheduler', methods=['PUT'])
+def update_scheduler_config():
+    """Update scheduler config in connection.yml and reconfigure APScheduler job"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'Body JSON requerido'}), 400
+
+        enabled = bool(data.get('enabled', False))
+        interval_hours = data.get('interval_hours', 24)
+
+        # Validate interval
+        try:
+            interval_hours = float(interval_hours)
+            if interval_hours < 0.5:
+                interval_hours = 0.5
+        except (TypeError, ValueError):
+            interval_hours = 24
+
+        config = read_yaml(CONNECTION_PATH)
+        config['scheduler'] = {
+            'enabled': enabled,
+            'interval_hours': interval_hours,
+        }
+        write_yaml(CONNECTION_PATH, config)
+
+        # Reconfigure APScheduler
+        if enabled:
+            scheduler.add_job(
+                _scheduled_scan, 'interval',
+                hours=interval_hours, id='scan_job', replace_existing=True
+            )
+            print(f"[scheduler] Scan scheduled every {interval_hours}h")
+        else:
+            try:
+                scheduler.remove_job('scan_job')
+                print("[scheduler] Scan job removed")
+            except Exception:
+                pass
+
+        return jsonify({'message': 'Scheduler actualizado'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/validate-regex', methods=['POST'])
 def validate_regex():
     """Valida una expresión regular contra texto de prueba"""
@@ -1159,6 +1281,10 @@ def validate_regex():
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# Initialize scheduler from config on app startup
+_init_scheduler()
 
 
 if __name__ == '__main__':

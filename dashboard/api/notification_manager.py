@@ -7,6 +7,7 @@ tras cada scan de hawk-scanner.
 import json
 import smtplib
 import os
+from datetime import datetime
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from urllib.request import Request, urlopen
@@ -167,7 +168,16 @@ class NotificationManager:
 
     def _send_smtp(self, cfg, text, summary=None):
         msg = MIMEMultipart('alternative')
-        msg['From'] = cfg.get('from_address', '')
+        
+        # Build From header with optional display name/alias
+        from_address = cfg.get('from_address', '')
+        from_name = cfg.get('from_name', '').strip()
+        if from_name:
+            # Format: "Display Name" <email@domain.com>
+            msg['From'] = f'"{from_name}" <{from_address}>'
+        else:
+            msg['From'] = from_address
+            
         msg['To'] = cfg.get('to_addresses', '')
         msg['Subject'] = 'Poirot DSPM - Scan Report'
 
@@ -208,8 +218,11 @@ class NotificationManager:
         top_patterns = sorted(by_pat.items(), key=lambda x: x[1], reverse=True)[:7]
         fecha = datetime.now().strftime('%d/%m/%Y %H:%M')
 
-        # --- Ask Ollama ONLY for the analysis paragraph ---
-        analysis = self._get_ollama_analysis(summary)
+        print(f"[ollama] Summary data: total={total}, by_sev={by_sev}, by_src={by_src}, by_pat={by_pat}")
+
+        # --- Ask Ollama for analysis and recommendations ---
+        analysis_text = self._get_ollama_analysis(summary)
+        analysis, recommendations_html = self._parse_ollama_response(analysis_text)
 
         # --- Build severity cards ---
         sev_colors = {
@@ -292,9 +305,16 @@ class NotificationManager:
       </table>
     </div>
     <div style="padding:24px 30px;">
-      <div style="background:#eff6ff;border-left:4px solid #3b82f6;padding:20px;border-radius:0 8px 8px 0;">
-        <h4 style="margin:0 0 10px 0;color:#1e40af;font-size:14px;">Analisis y Recomendaciones</h4>
+      <h3 style="margin:0 0 16px 0;font-size:16px;color:#1f2937;">Analisis de Seguridad</h3>
+      <div style="background:#eff6ff;border-left:4px solid #3b82f6;padding:20px;border-radius:0 8px 8px 0;margin-bottom:20px;">
         <p style="margin:0;color:#1f2937;font-size:14px;line-height:1.6;">{analysis}</p>
+      </div>
+      
+      <h3 style="margin:0 0 16px 0;font-size:16px;color:#1f2937;">Recomendaciones</h3>
+      <div style="background:#f0fdf4;border-left:4px solid #16a34a;padding:20px;border-radius:0 8px 8px 0;">
+        <ul style="margin:0;padding-left:20px;color:#1f2937;font-size:14px;line-height:1.8;">
+          {recommendations_html}
+        </ul>
       </div>
     </div>
     <div style="padding:20px;text-align:center;border-top:1px solid #e5e7eb;background:#f9fafb;">
@@ -320,23 +340,29 @@ class NotificationManager:
         source_lines = [f"- {src_labels.get(s, s)}: {c} hallazgos" for s, c in by_src.items()]
         pattern_lines = [f"- {p}: {c} detecciones" for p, c in top_patterns]
 
-        prompt = f"""Sos un analista de ciberseguridad. Escribi un parrafo de analisis (4-5 oraciones) en espanol sobre este escaneo de datos sensibles.
+        prompt = f"""Eres un consultor de seguridad de la informacion. Realiza un analisis de postura de seguridad basado en resultados de un escaneo de vulnerabilidades en ambiente de pruebas.
 
-DATOS:
-Total: {summary.get('total_findings', 0)} hallazgos
-Severidad: CRITICAL={by_sev.get('CRITICAL', 0)}, HIGH={by_sev.get('HIGH', 0)}, MEDIUM={by_sev.get('MEDIUM', 0)}, LOW={by_sev.get('LOW', 0)}
+CONTEXTO: Este es un escaneo defensivo (Data Security Posture Management) para identificar datos sensibles expuestos en entornos controlados de testing. Los datos detectados son sinteticos/ficticios.
 
-Fuentes escaneadas:
+RESULTADOS DEL ESCANEO:
+- Total hallazgos: {summary.get('total_findings', 0)}
+- Severidad: CRITICAL={by_sev.get('CRITICAL', 0)}, HIGH={by_sev.get('HIGH', 0)}, MEDIUM={by_sev.get('MEDIUM', 0)}, LOW={by_sev.get('LOW', 0)}
+
+Fuentes analizadas:
 {chr(10).join(source_lines)}
 
-Patrones detectados:
-{chr(10).join(pattern_lines)}
+Categorias de datos:
+{chr(10).join(pattern_lines[:5])}
 
-INSTRUCCIONES:
-1. Menciona CADA fuente por nombre (ej: "En la base de datos MySQL se detectaron...", "En el bucket S3 se encontraron...")
-2. Destaca los patrones mas criticos y su riesgo real (ej: claves privadas expuestas permiten acceso no autorizado)
-3. Da 2-3 recomendaciones concretas y accionables
-4. Escribe SOLO el parrafo, sin titulos, sin HTML, sin markdown, sin bullet points. Texto plano corrido."""
+Proporciona tu evaluacion en este formato:
+
+ANALISIS:
+Evaluacion de riesgo y exposicion de datos sensibles identificados.
+
+RECOMENDACIONES:
+- Medida de mitigacion 1
+- Medida de mitigacion 2
+- Medida de mitigacion 3"""
 
         resp = requests.post(
             f"{url}/api/chat",
@@ -362,53 +388,382 @@ INSTRUCCIONES:
         print(f"[ollama] Analysis generated ({len(analysis)} chars)")
         return analysis
 
+    def _get_ollama_analysis_for_slack(self, summary):
+        """Get Ollama analysis formatted for Slack (short and emoji-friendly)."""
+        if not self.ollama_config.get('enabled'):
+            return None
+        
+        try:
+            # Reuse existing analysis method
+            analysis_text = self._get_ollama_analysis(summary)
+            analysis, recommendations = self._parse_ollama_response_for_slack(analysis_text)
+            
+            return {
+                'analysis': analysis,
+                'recommendations': recommendations
+            }
+        except Exception as e:
+            print(f"[ollama] Slack analysis failed: {e}")
+            return None
+    
+    def _is_refusal_response(self, text):
+        """Detect if Ollama refused to answer due to safety concerns."""
+        refusal_phrases = [
+            'lo siento', 'no puedo', 'sorry', 'i cannot', 'i can\'t',
+            'no puedo proporcionar', 'no puedo ayudar', 'disculpa',
+            'i\'m sorry', 'i am sorry', 'cannot provide', 'unable to',
+            'ataques ciberneticos', 'ciberataques', 'actividades maliciosas'
+        ]
+        text_lower = text.lower()
+        return any(phrase in text_lower for phrase in refusal_phrases)
+
+    def _parse_ollama_response_for_slack(self, text):
+        """Parse Ollama response for Slack format."""
+        import re
+        
+        # Check if model refused to answer
+        if self._is_refusal_response(text):
+            return None, []
+        
+        # Remove markdown formatting
+        text = re.sub(r'\*\*\*?(.+?)\*\*\*?', r'\1', text)
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'\*(.+?)\*', r'\1', text)
+        
+        analysis = ""
+        recommendations = []
+        
+        # Try multiple patterns for ANALISIS section (with and without accent)
+        analisis_patterns = [
+            r'ANÁLISIS:\s*(.*?)(?=RECOMENDACIONES:|$)',
+            r'ANALISIS:\s*(.*?)(?=RECOMENDACIONES:|$)',
+            r'ANÁLISIS\s+(.*?)(?=RECOMENDACIONES|$)',
+            r'ANALISIS\s+(.*?)(?=RECOMENDACIONES|$)',
+        ]
+        for pattern in analisis_patterns:
+            analisis_match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if analisis_match:
+                analysis = analisis_match.group(1).strip()
+                break
+        
+        # Try multiple patterns for RECOMENDACIONES section
+        rec_patterns = [
+            r'RECOMENDACIONES:\s*(.*)',
+            r'RECOMENDACIONES\s+(.*)',
+        ]
+        for pattern in rec_patterns:
+            rec_match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if rec_match:
+                rec_text = rec_match.group(1).strip()
+                for line in rec_text.split('\n'):
+                    line = line.strip()
+                    if line.startswith(('-', '*')) and not line.startswith('**'):
+                        rec = line[1:].strip()
+                        if rec and len(rec) > 5:
+                            recommendations.append(rec)
+                    elif line and len(line) > 10 and not line.upper().startswith(('ANALISIS', 'RECOMENDACIONES')):
+                        recommendations.append(line)
+                break
+        
+        # Fallback: if no clear sections found
+        if not analysis and not recommendations:
+            split_markers = ['RECOMENDACIONES', 'PARA ABORDAR', 'SE PROPONEN', 'MEDIDAS DE MITIGACION']
+            for marker in split_markers:
+                idx = text.upper().find(marker)
+                if idx > 0:
+                    analysis = text[:idx].strip()
+                    rec_text = text[idx:].strip()
+                    for line in rec_text.split('\n'):
+                        line = line.strip()
+                        if line and len(line) > 10 and not line.upper().startswith(marker):
+                            recommendations.append(line)
+                    break
+            if not analysis:
+                analysis = text
+        
+        # Clean up analysis
+        for marker in ['RECOMENDACIONES', 'PARA ABORDAR', 'SE PROPONEN', 'MEDIDAS DE MITIGACION']:
+            idx = analysis.upper().find(marker)
+            if idx > 0:
+                analysis = analysis[:idx].strip()
+        
+        return analysis, recommendations[:5]  # Limit to 5 recommendations
+
+    def _parse_ollama_response(self, text):
+        """Parse Ollama response into analysis and recommendations HTML."""
+        import re
+        
+        # Check if model refused to answer
+        if self._is_refusal_response(text):
+            # Return fallback analysis
+            fallback_analysis = "Se detectaron hallazgos de seguridad que requieren atencion. Revise los datos criticos identificados en las fuentes escaneadas y priorice la remediacion segun la severidad."
+            fallback_html = '<li>Priorizar la revision de hallazgos CRITICAL y HIGH</li><li>Implementar controles de acceso en las fuentes de datos afectadas</li><li>Auditar regularmente la exposicion de datos sensibles</li>'
+            return fallback_analysis, fallback_html
+        
+        # Remove markdown bold/italic that Ollama adds
+        text = re.sub(r'\*\*\*?(.+?)\*\*\*?', r'\1', text)
+        text = re.sub(r'\*\*(.+?)\*\*', r'\1', text)
+        text = re.sub(r'\*(.+?)\*', r'\1', text)
+        
+        analysis = ""
+        recommendations = []
+        
+        # Try multiple patterns for ANALISIS section (with and without accent)
+        analisis_patterns = [
+            r'ANÁLISIS:\s*(.*?)(?=RECOMENDACIONES:|$)',
+            r'ANALISIS:\s*(.*?)(?=RECOMENDACIONES:|$)',
+            r'ANÁLISIS\s+(.*?)(?=RECOMENDACIONES|$)',
+            r'ANALISIS\s+(.*?)(?=RECOMENDACIONES|$)',
+        ]
+        for pattern in analisis_patterns:
+            analisis_match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if analisis_match:
+                analysis = analisis_match.group(1).strip()
+                break
+        
+        # Try multiple patterns for RECOMENDACIONES section
+        rec_patterns = [
+            r'RECOMENDACIONES:\s*(.*)',
+            r'RECOMENDACIONES\s+(.*)',
+        ]
+        for pattern in rec_patterns:
+            rec_match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+            if rec_match:
+                rec_text = rec_match.group(1).strip()
+                # Parse bullet points (lines starting with -, *, or numbers)
+                for line in rec_text.split('\n'):
+                    line = line.strip()
+                    # Remove leading bullets
+                    if line.startswith('*') and not line.startswith('**'):
+                        line = line[1:].strip()
+                    elif line.startswith('-'):
+                        line = line[1:].strip()
+                    elif re.match(r'^\d+\.', line):
+                        line = re.sub(r'^\d+\.', '', line).strip()
+                    # Skip empty lines and headers
+                    if line and len(line) > 5 and not line.upper().startswith(('ANALISIS', 'RECOMENDACIONES')):
+                        recommendations.append(line)
+                break
+        
+        # Fallback: if no clear sections found, try to split by common markers
+        if not analysis and not recommendations:
+            # Look for common patterns in Ollama output
+            if 'RECOMENDACIONES' in text.upper() or 'PARA ABORDAR' in text.upper():
+                # Try to find where recommendations start
+                split_markers = ['RECOMENDACIONES', 'PARA ABORDAR', 'SE PROPONEN', 'MEDIDAS DE MITIGACION']
+                for marker in split_markers:
+                    idx = text.upper().find(marker)
+                    if idx > 0:
+                        analysis = text[:idx].strip()
+                        rec_text = text[idx:].strip()
+                        # Parse recommendations from the rest
+                        for line in rec_text.split('\n'):
+                            line = line.strip()
+                            if line and len(line) > 10 and not line.upper().startswith(marker):
+                                recommendations.append(line)
+                        break
+            else:
+                analysis = text
+        
+        # Clean up analysis: remove recommendation content if mixed
+        for marker in ['RECOMENDACIONES', 'PARA ABORDAR', 'SE PROPONEN', 'MEDIDAS DE MITIGACION']:
+            idx = analysis.upper().find(marker)
+            if idx > 0:
+                analysis = analysis[:idx].strip()
+        
+        # Convert newlines to HTML breaks for email
+        if analysis:
+            analysis = analysis.replace('\n', '<br>\n')
+        
+        # Build HTML for recommendations (limit to top 5)
+        if recommendations:
+            unique_recs = []
+            seen = set()
+            for rec in recommendations[:5]:
+                if rec not in seen:
+                    unique_recs.append(rec)
+                    seen.add(rec)
+            recommendations_html = '\n'.join([f'<li>{rec}</li>' for rec in unique_recs])
+        else:
+            recommendations_html = '<li>Priorizar la revision de hallazgos CRITICAL y HIGH</li>\n<li>Implementar controles de acceso en las fuentes de datos afectadas</li>\n<li>Auditar regularmente la exposicion de datos sensibles</li>'
+        
+        return analysis, recommendations_html
+
     def _send_slack(self, cfg, text, summary):
         by_sev = summary.get('by_severity', {})
+        by_src = summary.get('by_source', {})
+        total = summary.get('total_findings', 0)
+        
+        # Get Ollama analysis for Slack format
+        slack_analysis = self._get_ollama_analysis_for_slack(summary)
+        
+        # Determine alert emoji based on severity (using Unicode emojis)
+        critical_count = by_sev.get('CRITICAL', 0)
+        high_count = by_sev.get('HIGH', 0)
+        if critical_count > 0:
+            header_emoji = "🚨"
+        elif high_count > 0:
+            header_emoji = "⚠️"
+        else:
+            header_emoji = "✅"
+        
+        # Build source summary with Unicode emojis
+        source_lines = []
+        src_emojis = {'mysql': '🗄️', 's3': '☁️', 'gdrive': '📁', 'onedrive': '📁'}
+        for src, count in by_src.items():
+            emoji = src_emojis.get(src, '📂')
+            source_lines.append(f"{emoji} *{src.upper()}:* {count} hallazgos")
+        
         blocks = [
             {
                 "type": "header",
-                "text": {"type": "plain_text", "text": "Poirot DSPM - Scan Report"}
+                "text": {"type": "plain_text", "text": f"{header_emoji} Poirot DSPM - Alerta de Seguridad"}
             },
             {
                 "type": "section",
                 "fields": [
-                    {"type": "mrkdwn", "text": f"*CRITICAL:* {by_sev.get('CRITICAL', 0)}"},
-                    {"type": "mrkdwn", "text": f"*HIGH:* {by_sev.get('HIGH', 0)}"},
-                    {"type": "mrkdwn", "text": f"*MEDIUM:* {by_sev.get('MEDIUM', 0)}"},
-                    {"type": "mrkdwn", "text": f"*LOW:* {by_sev.get('LOW', 0)}"},
+                    {"type": "mrkdwn", "text": f"🔴 *CRITICAL:* `{by_sev.get('CRITICAL', 0)}`"},
+                    {"type": "mrkdwn", "text": f"🟠 *HIGH:* `{by_sev.get('HIGH', 0)}`"},
+                    {"type": "mrkdwn", "text": f"🟡 *MEDIUM:* `{by_sev.get('MEDIUM', 0)}`"},
+                    {"type": "mrkdwn", "text": f"🔵 *LOW:* `{by_sev.get('LOW', 0)}`"},
                 ]
             },
+            {"type": "divider"},
             {
                 "type": "section",
-                "text": {"type": "mrkdwn", "text": f"```{text}```"}
+                "text": {"type": "mrkdwn", "text": f"📊 *Total de hallazgos:* `{total}`"}
             }
         ]
+        
+        # Add sources if any
+        if source_lines:
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": "📁 *Fuentes escaneadas:*\n" + "\n".join(source_lines)}
+            })
+        
+        # Add Ollama analysis
+        if slack_analysis and slack_analysis.get('analysis'):
+            # Clean analysis text for Slack (escape special chars)
+            analysis_text = slack_analysis['analysis'].replace('*', '•')
+            blocks.append({"type": "divider"})
+            blocks.append({
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"🔍 *Análisis de Seguridad*\n{analysis_text}"}
+            })
+            
+            if slack_analysis.get('recommendations'):
+                recs_text = "\n".join([f"• {rec}" for rec in slack_analysis['recommendations']])
+                blocks.append({
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"💡 *Recomendaciones*\n{recs_text}"}
+                })
+        
+        # Add context footer
+        blocks.append({"type": "divider"})
+        blocks.append({
+            "type": "context",
+            "elements": [
+                {"type": "mrkdwn", "text": f"🤖 Generado por Poirot DSPM | {datetime.now().strftime('%d/%m/%Y %H:%M')}"}
+            ]
+        })
+        
         payload = json.dumps({"blocks": blocks}).encode('utf-8')
         req = Request(cfg['webhook_url'], data=payload, headers={'Content-Type': 'application/json'})
         urlopen(req, timeout=10)
 
     def _send_teams(self, cfg, text, summary):
         by_sev = summary.get('by_severity', {})
+        by_src = summary.get('by_source', {})
+        total = summary.get('total_findings', 0)
+        
+        # Get Ollama analysis for Teams format
+        teams_analysis = self._get_ollama_analysis_for_teams(summary)
+        
+        # Determine theme color based on severity
+        critical_count = by_sev.get('CRITICAL', 0)
+        high_count = by_sev.get('HIGH', 0)
+        if critical_count > 0:
+            theme_color = "d63939"  # Red
+            header_emoji = "🚨"
+        elif high_count > 0:
+            theme_color = "f76707"  # Orange
+            header_emoji = "⚠️"
+        else:
+            theme_color = "16a34a"  # Green
+            header_emoji = "✅"
+        
+        # Build source summary
+        source_facts = []
+        for src, count in by_src.items():
+            source_facts.append({"name": src.upper(), "value": f"{count} hallazgos"})
+        
+        # Build main facts
+        facts = [
+            {"name": "🔴 CRITICAL", "value": str(by_sev.get('CRITICAL', 0))},
+            {"name": "🟠 HIGH", "value": str(by_sev.get('HIGH', 0))},
+            {"name": "🟡 MEDIUM", "value": str(by_sev.get('MEDIUM', 0))},
+            {"name": "🔵 LOW", "value": str(by_sev.get('LOW', 0))},
+            {"name": "📊 Total", "value": str(total)},
+        ]
+        
+        # Add sources to facts
+        if source_facts:
+            facts.append({"name": "─" * 15, "value": "─" * 15})  # Separator
+            facts.extend(source_facts)
+        
+        # Build sections
+        sections = [{
+            "activityTitle": f"{header_emoji} Poirot DSPM - Alerta de Seguridad",
+            "activitySubtitle": f"Escaneo completado - {datetime.now().strftime('%d/%m/%Y %H:%M')}",
+            "facts": facts,
+        }]
+        
+        # Add Ollama analysis if available
+        if teams_analysis and teams_analysis.get('analysis'):
+            # Clean analysis for Teams (no markdown, plain text)
+            analysis_clean = teams_analysis['analysis'].replace('*', '').replace('_', '')
+            sections.append({
+                "title": "🔍 Análisis de Seguridad",
+                "text": analysis_clean
+            })
+            
+            if teams_analysis.get('recommendations'):
+                recs_text = "\n\n".join([f"{i+1}. {rec}" for i, rec in enumerate(teams_analysis['recommendations'][:5])])
+                sections.append({
+                    "title": "💡 Recomendaciones",
+                    "text": recs_text
+                })
+        
         card = {
             "@type": "MessageCard",
             "@context": "http://schema.org/extensions",
-            "themeColor": "d63939" if by_sev.get('CRITICAL', 0) > 0 else "f76707",
-            "summary": "Poirot DSPM - Scan Report",
-            "sections": [{
-                "activityTitle": "Poirot DSPM - Scan Report",
-                "facts": [
-                    {"name": "CRITICAL", "value": str(by_sev.get('CRITICAL', 0))},
-                    {"name": "HIGH", "value": str(by_sev.get('HIGH', 0))},
-                    {"name": "MEDIUM", "value": str(by_sev.get('MEDIUM', 0))},
-                    {"name": "LOW", "value": str(by_sev.get('LOW', 0))},
-                    {"name": "Total", "value": str(summary.get('total_findings', 0))},
-                ],
-                "text": text
-            }]
+            "themeColor": theme_color,
+            "summary": f"Poirot DSPM - {total} hallazgos detectados",
+            "sections": sections
         }
+        
         payload = json.dumps(card).encode('utf-8')
         req = Request(cfg['webhook_url'], data=payload, headers={'Content-Type': 'application/json'})
         urlopen(req, timeout=10)
+
+    def _get_ollama_analysis_for_teams(self, summary):
+        """Get Ollama analysis formatted for Teams (similar to Slack)."""
+        if not self.ollama_config.get('enabled'):
+            return None
+        
+        try:
+            # Reuse existing analysis method
+            analysis_text = self._get_ollama_analysis(summary)
+            analysis, recommendations = self._parse_ollama_response_for_slack(analysis_text)
+            
+            return {
+                'analysis': analysis,
+                'recommendations': recommendations
+            }
+        except Exception as e:
+            print(f"[ollama] Teams analysis failed: {e}")
+            return None
 
     def _send_webhook(self, cfg, summary, stats, new_alerts):
         payload_data = {

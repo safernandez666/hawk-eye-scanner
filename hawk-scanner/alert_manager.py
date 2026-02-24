@@ -52,7 +52,8 @@ class AlertManager:
             finding.get('data_source', ''),
             finding.get('pattern_name', ''),
             finding.get('database', '') + finding.get('table', '') + finding.get('column', ''),
-            finding.get('bucket', '') + finding.get('file_path', '')
+            finding.get('bucket', '') + finding.get('file_path', ''),
+            finding.get('file_id', ''),  # for gdrive/onedrive
         ]
 
         key_string = '|'.join(str(p) for p in key_parts)
@@ -152,11 +153,14 @@ class AlertManager:
 
     def _get_location(self, finding: Dict) -> str:
         """Extrae la ubicación del hallazgo"""
-        if finding.get('data_source') == 'mysql':
+        ds = finding.get('data_source', 'unknown')
+        if ds == 'mysql':
             return f"{finding.get('database')}.{finding.get('table')}.{finding.get('column')}"
-        elif finding.get('data_source') == 's3':
+        elif ds == 's3':
             return f"{finding.get('bucket')}/{finding.get('file_path')}"
-        return 'unknown'
+        elif ds in ('gdrive', 'onedrive'):
+            return f"{ds}/{finding.get('file_path', finding.get('file_name', 'unknown'))}"
+        return f"{ds}/unknown"
 
     def update_thehive_case(self, alert_hash: str, case_id: str, status: str = 'New'):
         """Actualiza el caso de TheHive asociado a una alerta"""

@@ -25,6 +25,11 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 # Copiar todo el directorio del scanner
 COPY hawk-scanner /app/
 
+# Install OneDrive connector into hawk_scanner package
+COPY hawk-eye-contrib /tmp/hawk-eye-contrib
+RUN python /tmp/hawk-eye-contrib/install_onedrive.py \
+ && rm -rf /tmp/hawk-eye-contrib
+
 # Crear carpetas necesarias
 RUN mkdir -p /app/alerts /app/data \
  && chmod -R a+rX /app

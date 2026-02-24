@@ -48,6 +48,7 @@ build/
 *.key
 *_rsa
 *_dsa
+hawk-scanner/connection.yml
 
 # Backups
 *.backup

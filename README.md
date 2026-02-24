@@ -135,6 +135,100 @@ THEHIVE_API_KEY=your-api-key
 
 ---
 
+## Notifications Configuration
+
+Poirot supports notifications via **SMTP (Email)**, **Slack**, **Microsoft Teams**, and **Webhook**. Configure them in the dashboard at **Settings → Notifications**.
+
+### SMTP (Email)
+
+Send scan reports via email with AI-powered HTML analysis (requires Ollama).
+
+**Setup:**
+1. Go to **Settings → Notifications → SMTP**
+2. Enable the channel and configure:
+   - **Host**: Your SMTP server (e.g., `smtp.gmail.com`)
+   - **Port**: Usually `587` (TLS) or `465` (SSL)
+   - **Username**: Your email address
+   - **Password**: Your email password or app-specific password
+   - **From Address**: Sender email
+   - **From Name**: Display name (e.g., "Poirot Security")
+   - **To Addresses**: Comma-separated recipient emails
+   - **Severity Filter**: Which severities trigger notifications
+
+> **Tip:** For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833) instead of your regular password.
+
+### Slack
+
+Send alerts to a Slack channel with rich formatting and AI analysis.
+
+**Setup:**
+1. Go to [api.slack.com/apps](https://api.slack.com/apps) → **Create New App**
+2. Select **From scratch**, name it "Poirot DSPM"
+3. Go to **Incoming Webhooks** → Toggle **On** → **Add New Webhook to Workspace**
+4. Select the channel for notifications
+5. Copy the Webhook URL
+6. In Poirot dashboard, go to **Settings → Notifications → Slack**
+7. Enable and paste the Webhook URL
+
+### Microsoft Teams
+
+Send alerts to a Teams channel with cards and AI analysis.
+
+**Setup:**
+1. In Teams, go to the channel → **...** (more options) → **Connectors**
+2. Search for **"Incoming Webhook"** → **Configure**
+3. Name: `Poirot DSPM`, optionally upload a logo
+4. Click **Create** and copy the Webhook URL
+5. In Poirot dashboard, go to **Settings → Notifications → Teams**
+6. Enable and paste the Webhook URL
+
+### Webhook (Generic)
+
+Send scan results to any custom endpoint.
+
+**Setup:**
+1. Go to **Settings → Notifications → Webhook**
+2. Enable and configure:
+   - **URL**: Your endpoint URL
+   - **Method**: HTTP method (POST, PUT, etc.)
+   - **Headers**: Custom headers (e.g., `Authorization`, `X-API-Key`)
+
+**Payload example:**
+```json
+{
+  "source": "poirot-dspm",
+  "event": "scan_complete",
+  "summary": {
+    "total_findings": 20,
+    "by_severity": {"CRITICAL": 2, "HIGH": 6, ...},
+    "by_source": {"mysql": 9, "s3": 11}
+  },
+  "new_alerts_count": 5
+}
+```
+
+---
+
+## AI-Powered Reports (Ollama)
+
+Enable AI-generated analysis and recommendations in email and chat notifications.
+
+**Setup:**
+1. Ensure Ollama is running (included in `docker-compose.yml`)
+2. Go to **Settings → Ollama**
+3. Enable and configure:
+   - **URL**: `http://host.docker.internal:11434` (default)
+   - **Model**: `llama3.2:3b` or any installed model
+4. Test the connection with the **Test** button
+
+**Features:**
+- 📧 HTML email reports with professional formatting
+- 🔍 Security analysis of findings (3-4 sentences)
+- 💡 Actionable recommendations (bullet points)
+- 💬 Rich Slack/Teams messages with emojis
+
+---
+
 ## Dashboard
 
 The dashboard has 7 sections:

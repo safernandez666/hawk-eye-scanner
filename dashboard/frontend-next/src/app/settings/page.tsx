@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNotifications, updateNotificationChannel, testNotificationChannel, useOllamaConfig, updateOllamaConfig, fetchOllamaModels } from "@/hooks/use-api";
-import type { NotificationChannel, OllamaConfig } from "@/types";
+import { useNotifications, updateNotificationChannel, testNotificationChannel, useOllamaConfig, updateOllamaConfig, fetchOllamaModels, useSchedulerConfig, updateSchedulerConfig } from "@/hooks/use-api";
+import type { NotificationChannel, OllamaConfig, SchedulerConfig } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, MessageSquare, Globe, Send, Save, Loader2, Plug, Bot } from "lucide-react";
+import { Mail, MessageSquare, Globe, Send, Save, Loader2, Plug, Bot, Clock } from "lucide-react";
 
 // Icono personalizado de abeja para TheHive
 const BeeIcon = ({ className }: { className?: string }) => (
@@ -58,7 +58,8 @@ const SMTP_FIELDS = [
   { name: "port", label: "Puerto", type: "number", placeholder: "587" },
   { name: "username", label: "Usuario", type: "text", placeholder: "user@example.com" },
   { name: "password", label: "Password", type: "password", placeholder: "********" },
-  { name: "from_address", label: "Remitente", type: "text", placeholder: "alerts@example.com" },
+  { name: "from_address", label: "Remitente (email)", type: "text", placeholder: "alerts@example.com" },
+  { name: "from_name", label: "Alias del remitente", type: "text", placeholder: "Poirot Security" },
   { name: "to_addresses", label: "Destinatarios (separados por coma)", type: "text", placeholder: "admin@example.com, security@example.com" },
 ];
 
@@ -94,7 +95,7 @@ function getDefaultChannel(name: string): NotificationChannel {
     return { ...base, url: "http://thehive:9000", api_key: "", create_cases: true, severity_filter: ["CRITICAL", "HIGH"] };
   }
   if (name === "smtp") {
-    return { ...base, host: "", port: 587, use_tls: true, username: "", password: "", from_address: "", to_addresses: "", severity_filter: ["CRITICAL", "HIGH"] };
+    return { ...base, host: "", port: 587, use_tls: true, username: "", password: "", from_address: "", from_name: "", to_addresses: "", severity_filter: ["CRITICAL", "HIGH"] };
   }
   if (name === "slack" || name === "teams") {
     return { ...base, webhook_url: "" };
@@ -102,9 +103,18 @@ function getDefaultChannel(name: string): NotificationChannel {
   return { ...base, url: "", method: "POST", headers: { "Content-Type": "application/json" }, severity_filter: ["CRITICAL", "HIGH", "MEDIUM", "LOW"] };
 }
 
+const INTERVAL_OPTIONS = [
+  { value: "1", label: "Cada 1 hora" },
+  { value: "6", label: "Cada 6 horas" },
+  { value: "12", label: "Cada 12 horas" },
+  { value: "24", label: "Cada 24 horas (diario)" },
+  { value: "168", label: "Cada 168 horas (semanal)" },
+];
+
 export default function SettingsPage() {
   const { data, loading, refetch } = useNotifications();
   const { data: ollamaData, loading: ollamaLoading, refetch: refetchOllama } = useOllamaConfig();
+  const { data: schedulerData, loading: schedulerLoading, refetch: refetchScheduler } = useSchedulerConfig();
   const [localChannels, setLocalChannels] = useState<Record<string, NotificationChannel>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
@@ -115,6 +125,11 @@ export default function SettingsPage() {
   const [ollamaModels, setOllamaModels] = useState<string[]>([]);
   const [loadingModels, setLoadingModels] = useState(false);
   const [savingOllama, setSavingOllama] = useState(false);
+
+  // Scheduler state
+  const [schedulerEnabled, setSchedulerEnabled] = useState(false);
+  const [schedulerInterval, setSchedulerInterval] = useState("24");
+  const [savingScheduler, setSavingScheduler] = useState(false);
 
   useEffect(() => {
     if (data?.channels) {
@@ -135,6 +150,13 @@ export default function SettingsPage() {
       });
     }
   }, [ollamaData]);
+
+  useEffect(() => {
+    if (schedulerData) {
+      setSchedulerEnabled(schedulerData.enabled ?? false);
+      setSchedulerInterval(String(schedulerData.interval_hours ?? 24));
+    }
+  }, [schedulerData]);
 
   const updateField = (channel: string, field: string, value: unknown) => {
     setLocalChannels((prev) => ({
@@ -217,7 +239,23 @@ export default function SettingsPage() {
     }
   };
 
-  if (loading || ollamaLoading) {
+  const handleSaveScheduler = async () => {
+    setSavingScheduler(true);
+    try {
+      await updateSchedulerConfig({
+        enabled: schedulerEnabled,
+        interval_hours: Number(schedulerInterval),
+      });
+      toast.success("Scheduler actualizado");
+      refetchScheduler();
+    } catch (err: any) {
+      toast.error(err.message || "Error al guardar");
+    } finally {
+      setSavingScheduler(false);
+    }
+  };
+
+  if (loading || ollamaLoading || schedulerLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-full" />
@@ -229,7 +267,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="flex flex-wrap gap-1 h-auto w-full">
           {Object.entries(CHANNEL_META).map(([key, meta]) => (
             <TabsTrigger key={key} value={key} className="flex items-center gap-2">
               <meta.icon className="h-4 w-4" />
@@ -239,6 +277,10 @@ export default function SettingsPage() {
           <TabsTrigger value="ollama" className="flex items-center gap-2">
             <Bot className="h-4 w-4" />
             AI (Ollama)
+          </TabsTrigger>
+          <TabsTrigger value="scheduler" className="flex items-center gap-2">
+            <Clock className="h-4 w-4" />
+            Scheduler
           </TabsTrigger>
         </TabsList>
 
@@ -450,6 +492,72 @@ export default function SettingsPage() {
               <div className="flex gap-3 pt-2">
                 <Button onClick={handleSaveOllama} disabled={savingOllama}>
                   {savingOllama ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="mr-2 h-4 w-4" />
+                  )}
+                  Guardar
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Scheduler Tab */}
+        <TabsContent value="scheduler">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  <CardTitle>Scheduler</CardTitle>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="scheduler-enabled" className="text-sm">
+                    {schedulerEnabled ? "Habilitado" : "Deshabilitado"}
+                  </Label>
+                  <Switch
+                    id="scheduler-enabled"
+                    checked={schedulerEnabled}
+                    onCheckedChange={setSchedulerEnabled}
+                  />
+                </div>
+              </div>
+              <CardDescription>
+                Configura escaneos automaticos a intervalos regulares
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="scheduler-interval">Frecuencia de escaneo</Label>
+                <Select value={schedulerInterval} onValueChange={setSchedulerInterval}>
+                  <SelectTrigger id="scheduler-interval">
+                    <SelectValue placeholder="Seleccionar intervalo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {INTERVAL_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {schedulerData?.next_run && schedulerEnabled && (
+                <div className="rounded-md border p-3 text-sm">
+                  <span className="text-muted-foreground">Proximo escaneo: </span>
+                  <span className="font-medium">{new Date(schedulerData.next_run).toLocaleString()}</span>
+                </div>
+              )}
+
+              {!schedulerEnabled && (
+                <p className="text-sm text-muted-foreground">
+                  Habilita el scheduler para ejecutar escaneos automaticamente
+                </p>
+              )}
+
+              <div className="flex gap-3 pt-2">
+                <Button onClick={handleSaveScheduler} disabled={savingScheduler}>
+                  {savingScheduler ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <Save className="mr-2 h-4 w-4" />

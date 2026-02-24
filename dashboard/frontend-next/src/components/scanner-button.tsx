@@ -10,6 +10,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import {
   Play,
@@ -17,8 +19,11 @@ import {
   CheckCircle,
   XCircle,
   RefreshCw,
+  Database,
+  Cloud,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useSources } from "@/hooks/use-api";
 
 interface ScannerStatus {
   running: boolean;
@@ -84,6 +89,11 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
   const [logs, setLogs] = useState<string[]>([]);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const logOffset = useRef(0);
+  
+  // Source selection state
+  const { data: sourcesData } = useSources();
+  const [showSourceSelection, setShowSourceSelection] = useState(false);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
 
   useEffect(() => {
     return () => {
@@ -128,7 +138,20 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
     }
   }, [onScanComplete]);
 
-  const handleScan = async () => {
+  const handleStartScan = () => {
+    // Show source selection dialog first
+    if (sourcesData?.sources && sourcesData.sources.length > 0) {
+      // Guardar los TIPOS de fuentes (mysql, s3), no los nombres
+      setSelectedSources(sourcesData.sources.map((s: {type: string}) => s.type));
+      setShowSourceSelection(true);
+    } else {
+      // No sources configured, start scan directly
+      handleScan([]);
+    }
+  };
+
+  const handleScan = async (sources: string[]) => {
+    setShowSourceSelection(false);
     setIsOpen(true);
     setIsScanning(true);
     setProgress(5);
@@ -137,7 +160,11 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
     logOffset.current = 0;
 
     try {
-      const res = await fetch("/api/scanner/run", { method: "POST" });
+      const res = await fetch("/api/scanner/run", { 
+        method: "POST",
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sources: sources.length > 0 ? sources : undefined })
+      });
       const data = await res.json();
 
       if (data.status === "error") {
@@ -175,7 +202,7 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
   return (
     <>
       <Button
-        onClick={handleScan}
+        onClick={handleStartScan}
         disabled={isScanning}
         className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
       >
@@ -192,6 +219,55 @@ export function ScannerButton({ onScanComplete }: ScannerButtonProps) {
         )}
       </Button>
 
+      {/* Source Selection Dialog */}
+      <Dialog open={showSourceSelection} onOpenChange={setShowSourceSelection}>
+        <DialogContent className="sm:max-w-[400px]">
+          <DialogHeader>
+            <DialogTitle>Seleccionar Fuentes</DialogTitle>
+            <DialogDescription>
+              Elige qué fuentes de datos quieres escanear
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 py-4">
+            {sourcesData?.sources?.map((source: {name: string, type: string}) => (
+              <div key={source.name} className="flex items-center space-x-3">
+                <Checkbox 
+                  id={`source-${source.type}`}
+                  checked={selectedSources.includes(source.type)}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedSources([...selectedSources, source.type]);
+                    } else {
+                      setSelectedSources(selectedSources.filter(s => s !== source.type));
+                    }
+                  }}
+                />
+                <Label htmlFor={`source-${source.type}`} className="flex items-center gap-2 cursor-pointer">
+                  {source.type === 's3' ? <Cloud className="h-4 w-4" /> : <Database className="h-4 w-4" />}
+                  {source.name}
+                  <span className="text-xs text-muted-foreground">({source.type})</span>
+                </Label>
+              </div>
+            ))}
+          </div>
+          
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setShowSourceSelection(false)}>
+              Cancelar
+            </Button>
+            <Button 
+              onClick={() => handleScan(selectedSources)}
+              disabled={selectedSources.length === 0}
+            >
+              <Play className="mr-2 h-4 w-4" />
+              Escanear {selectedSources.length > 0 && `(${selectedSources.length})`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Scan Progress Dialog */}
       <Dialog open={isOpen} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-[400px]">
           <DialogHeader className="text-center pb-0">

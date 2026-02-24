@@ -11,20 +11,24 @@ notify:
       severity_filter:
       - CRITICAL
       - HIGH
+      - MEDIUM
+      - LOW
       host: smtp.hostinger.com
       port: 587
       use_tls: true
       username: sfernandez@ironbox.com.ar
-      password: Jupiter34*%??
+      password: YOUR_EMAIL_PASSWORD
       from_address: sfernandez@ironbox.com.ar
+      from_name: Poirot Security
       to_addresses: sfernandez@ironbox.com.ar
     slack:
-      enabled: false
-      webhook_url: ''
+      enabled: true
       severity_filter:
       - CRITICAL
       - HIGH
       - MEDIUM
+      - LOW
+      webhook_url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
     teams:
       enabled: false
       webhook_url: ''
@@ -51,6 +55,9 @@ notify:
       url: http://thehive:9000
       api_key: FEdjJZ0rxWGZoXsIPOAdVmuOivmgo3h9
       create_cases: true
+scheduler:
+  enabled: false
+  interval_hours: 24
 sources:
   mysql:
     poc_mysql:

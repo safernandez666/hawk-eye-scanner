@@ -6,6 +6,7 @@ import os
 import sys
 import yaml
 import re as regex_module
+import argparse
 from datetime import datetime
 from collections import Counter
 from severity_classifier import reclassify_findings, get_critical_findings
@@ -17,6 +18,11 @@ RESULTS_DIR = "/app/alerts"
 
 os.makedirs(ALERTS_DIR, exist_ok=True)
 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+# Parse arguments
+parser = argparse.ArgumentParser(description='Poirot DSPM Scanner')
+parser.add_argument('--sources', type=str, help='Comma-separated list of sources to scan (e.g., mysql,s3)')
+args = parser.parse_args()
 
 def prepare_fingerprint_for_scanner(input_file="fingerprint.yml", output_file="/tmp/fingerprint_compat.yml"):
     """Convierte el fingerprint con metadata a formato compatible con hawk_scanner"""
@@ -84,28 +90,21 @@ def run_scan(source_type, output_file):
         print(f"❌ Excepción en {source_type}: {e}")
         return False
 
-def consolidate_results(mysql_file, s3_file, output_file):
+def consolidate_results(source_files, output_file):
+    """Consolidate results from all scanned sources into a single file."""
     all_results = []
 
-    if os.path.exists(mysql_file):
-        with open(mysql_file, 'r') as f:
-            mysql_data = json.load(f)
-            if isinstance(mysql_data, dict):
-                for key, findings in mysql_data.items():
+    for source_type, source_file in source_files.items():
+        if not os.path.exists(source_file):
+            continue
+        with open(source_file, 'r') as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                for key, findings in data.items():
                     if isinstance(findings, list):
                         all_results.extend(findings)
-            elif isinstance(mysql_data, list):
-                all_results.extend(mysql_data)
-
-    if os.path.exists(s3_file):
-        with open(s3_file, 'r') as f:
-            s3_data = json.load(f)
-            if isinstance(s3_data, dict):
-                for key, findings in s3_data.items():
-                    if isinstance(findings, list):
-                        all_results.extend(findings)
-            elif isinstance(s3_data, list):
-                all_results.extend(s3_data)
+            elif isinstance(data, list):
+                all_results.extend(data)
 
     all_results = reclassify_findings(all_results)
 
@@ -164,6 +163,9 @@ def display_findings(results):
             elif finding.get('data_source') == 's3':
                 print(f"      Bucket: {finding.get('bucket', 'N/A')}")
                 print(f"      Archivo: {finding.get('file_path', 'N/A')}")
+            elif finding.get('data_source') in ('gdrive', 'onedrive'):
+                print(f"      File: {finding.get('file_name', 'N/A')}")
+                print(f"      Path: {finding.get('file_path', 'N/A')}")
 
             matches = finding.get('matches', [])
             if matches:
@@ -257,18 +259,35 @@ if __name__ == "__main__":
     print("🦅 HAWK-EYE SCANNER - Automated Security Scan")
     print("=" * 70)
 
-    mysql_output = f"{RESULTS_DIR}/mysql_{timestamp}.json"
-    s3_output = f"{RESULTS_DIR}/s3_{timestamp}.json"
     consolidated_output = f"{RESULTS_DIR}/consolidated_{timestamp}.json"
     summary_output = f"{RESULTS_DIR}/summary_{timestamp}.json"
     latest_output = f"{RESULTS_DIR}/latest.json"
 
-    # 1. ESCANEO
-    mysql_success = run_scan("mysql", mysql_output)
-    s3_success = run_scan("s3", s3_output)
+    # 1. ESCANEO - detect configured sources from connection.yml
+    with open('connection.yml', 'r') as f:
+        config = yaml.safe_load(f)
+    sources_config = config.get('sources', {})
 
-    if mysql_success or s3_success:
-        results = consolidate_results(mysql_output, s3_output, consolidated_output)
+    # Filtrar fuentes si se especificaron
+    sources_to_scan = list(sources_config.keys())
+    if args.sources:
+        requested_sources = [s.strip() for s in args.sources.split(',')]
+        sources_to_scan = [s for s in requested_sources if s in sources_config]
+        if not sources_to_scan:
+            print("❌ No se encontraron fuentes válidas para escanear")
+            sys.exit(1)
+        print(f"📋 Fuentes seleccionadas: {', '.join(sources_to_scan)}")
+
+    scan_results = {}
+    any_success = False
+    for source_type in sources_to_scan:
+        output_file = f"{RESULTS_DIR}/{source_type}_{timestamp}.json"
+        if run_scan(source_type, output_file):
+            scan_results[source_type] = output_file
+            any_success = True
+
+    if any_success:
+        results = consolidate_results(scan_results, consolidated_output)
 
         # 2. TRACKING (AGRUPADO POR HASH)
         print(f"\n{'='*70}")
@@ -323,14 +342,14 @@ if __name__ == "__main__":
         # 3. MOSTRAR HALLAZGOS
         display_findings(results)
 
-        # Preparar datos para notificaciones y resumen
-        valid_results = [r for r in results if isinstance(r, dict) and 'pattern_name' in r]
+        # Preparar datos para notificaciones y resumen (usando alertas deduplicadas)
+        unique_findings = [group[0] for group in findings_by_hash.values()]
         summary_data = {
             "scan_date": datetime.now().isoformat(),
-            "total_findings": len(valid_results),
-            "by_severity": dict(Counter([r.get('severity', 'unknown') for r in valid_results])),
-            "by_pattern": dict(Counter([r.get('pattern_name', 'unknown') for r in valid_results])),
-            "by_source": dict(Counter([r.get('data_source', 'unknown') for r in valid_results])),
+            "total_findings": len(unique_findings),
+            "by_severity": dict(Counter([r.get('severity', 'unknown') for r in unique_findings])),
+            "by_pattern": dict(Counter([r.get('pattern_name', 'unknown') for r in unique_findings])),
+            "by_source": dict(Counter([r.get('data_source', 'unknown') for r in unique_findings])),
         }
 
         # 4. NOTIFICACIONES (incluye TheHive si esta habilitado)
@@ -365,5 +384,5 @@ if __name__ == "__main__":
         print(f"📁 Resultados guardados en: {ALERTS_DIR}/")
         print(f"{'='*70}\n")
     else:
-        print("\n❌ Escaneo falló")
+        print("\n❌ Ningún escaneo tuvo éxito")
         exit(1)

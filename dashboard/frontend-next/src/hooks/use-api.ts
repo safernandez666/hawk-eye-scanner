@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Alert, Stats, Pattern, Source, TimelineEntry, TheHiveCase, ScannerStatus, NotificationChannel, OllamaConfig } from "@/types";
+import type { Alert, Stats, Pattern, Source, TimelineEntry, TheHiveCase, ScannerStatus, NotificationChannel, OllamaConfig, SchedulerConfig } from "@/types";
 
 const API_BASE = "/api";
 
@@ -148,5 +148,18 @@ export async function fetchOllamaModels(url: string) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ url }),
+  });
+}
+
+// Scheduler
+export function useSchedulerConfig() {
+  return useApi<SchedulerConfig>(`${API_BASE}/config/scheduler`);
+}
+
+export async function updateSchedulerConfig(config: { enabled: boolean; interval_hours: number }) {
+  return fetcher<{ message: string }>(`${API_BASE}/config/scheduler`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(config),
   });
 }
