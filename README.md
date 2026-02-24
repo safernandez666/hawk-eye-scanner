@@ -1,14 +1,10 @@
 <p align="center">
   <img src="screenshots/logo.png" alt="Poirot DSPM" width="380">
 </p>
-
-<h1 align="center">Poirot DSPM</h1>
-
 <p align="center">
   <strong>Data Security Posture Management</strong><br>
   Detect, classify and manage sensitive data across your data sources.
 </p>
-
 <p align="center">
   <a href="https://www.loom.com/share/410cab64f9084212aff7911729f8896b">
     <img src="https://cdn.loom.com/sessions/thumbnails/410cab64f9084212aff7911729f8896b-0d94a39cb9200ceb-full-play.gif#t=0.1" alt="Demo" width="400">
