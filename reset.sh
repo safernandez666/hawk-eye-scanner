@@ -55,24 +55,35 @@ if [ -n "$THEHIVE_API_KEY" ]; then
         echo "  Conectado a TheHive ($THEHIVE_URL)"
 
         # Listar todos los casos
-        CASES=$(curl -s \
+        CASES_JSON=$(curl -s \
             -H "Authorization: Bearer $THEHIVE_API_KEY" \
             -H "Content-Type: application/json" \
             -d '{"query":[{"_name":"listCase"}]}' \
             "$THEHIVE_URL/api/v1/query" 2>/dev/null)
+        
+        export CASES_JSON
 
-        CASE_IDS=$(echo "$CASES" | python3 -c "
-import sys, json
+        # Extraer IDs usando Python
+        CASE_IDS=$(python3 -c "
+import sys, json, os
 try:
-    cases = json.load(sys.stdin)
-    for c in cases:
-        print(c['_id'])
-except: pass
+    cases = json.loads(os.environ.get('CASES_JSON', '[]'))
+    if isinstance(cases, list):
+        for c in cases:
+            if isinstance(c, dict) and '_id' in c:
+                print(c['_id'])
+except Exception as e:
+    sys.stderr.write(f'Error: {e}\\n')
 " 2>/dev/null)
 
-        CASE_COUNT=$(echo "$CASE_IDS" | grep -c . 2>/dev/null || echo "0")
+        # Contar casos (líneas no vacías)
+        CASE_COUNT=0
+        if [ -n "$CASE_IDS" ]; then
+            CASE_COUNT=$(printf '%s\n' "$CASE_IDS" | grep -v '^$' | wc -l | tr -d '[:space:]')
+        fi
+        
         echo "  Casos encontrados: $CASE_COUNT"
-
+        
         if [ "$CASE_COUNT" -gt 0 ]; then
             while IFS= read -r CASE_ID; do
                 [ -z "$CASE_ID" ] && continue
