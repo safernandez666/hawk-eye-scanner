@@ -16,11 +16,11 @@ notify:
       host: smtp.hostinger.com
       port: 587
       use_tls: true
-      username: sfernandez@ironbox.com.ar
+      username: your-email@example.com
       password: YOUR_EMAIL_PASSWORD
-      from_address: sfernandez@ironbox.com.ar
+      from_address: your-email@example.com
       from_name: Poirot Security
-      to_addresses: sfernandez@ironbox.com.ar
+      to_addresses: recipient@example.com
     slack:
       enabled: true
       severity_filter:
@@ -53,7 +53,7 @@ notify:
       - CRITICAL
       - HIGH
       url: http://thehive:9000
-      api_key: FEdjJZ0rxWGZoXsIPOAdVmuOivmgo3h9
+      api_key: YOUR_THEHIVE_API_KEY
       create_cases: true
 scheduler:
   enabled: false
