@@ -31,7 +31,7 @@
 
 Poirot scans data sources looking for **sensitive information** (credit cards, credentials, PII) using configurable regex patterns. It classifies findings by severity, deduplicates by location, and can automatically create cases in **TheHive** for case management.
 
-The project includes a MySQL database and an S3 bucket (via LocalStack) as **demo sources** to showcase the functionality.
+The project includes a MySQL database and an S3 bucket (via LocalStack) as **demo sources** to showcase the functionality. It also supports **Google Drive** and **OneDrive** as real data sources.
 
 ### Pipeline
 
@@ -43,7 +43,7 @@ Data Sources --> Hawk-Eye Scanner (regex) --> Severity Classification --> Dedupl
 
 ### Features
 
-- Scan data sources with configurable regex patterns
+- Scan data sources with configurable regex patterns (MySQL, S3, Google Drive, OneDrive)
 - Classify findings by severity (CRITICAL, HIGH, MEDIUM, LOW)
 - Deduplicate by location hash (same table+column+pattern = 1 alert)
 - Detect re-occurrences: if a resolved finding reappears, it gets reopened
@@ -51,6 +51,7 @@ Data Sources --> Hawk-Eye Scanner (regex) --> Severity Classification --> Dedupl
 - CRUD for patterns and sources from the UI
 - Automatic case creation in TheHive
 - Notifications via SMTP, Slack, Teams or Webhook
+- AI-powered HTML email reports via Ollama (optional)
 
 ---
 
@@ -63,6 +64,7 @@ Data Sources --> Hawk-Eye Scanner (regex) --> Severity Classification --> Dedupl
 | API | Flask | Internal |
 | Case Management | TheHive 5.0 (optional) | `:9000` |
 | Tracking | SQLite | - |
+| AI Reports | Ollama (optional) | `:11434` |
 | *Demo:* Database | MySQL 8.0 | `:3306` |
 | *Demo:* Object Storage | LocalStack S3 | `:4566` |
 
@@ -145,7 +147,7 @@ The dashboard has 7 sections:
 | **Timeline** | Detection chart by day |
 | **Sources** | Data source CRUD, connectivity health check |
 | **Cases** | TheHive cases, alert sync |
-| **Settings** | Notification channels (SMTP, Slack, Teams, Webhook, TheHive) |
+| **Settings** | Notification channels (SMTP, Slack, Teams, Webhook, TheHive), AI (Ollama) config |
 
 ---
 
@@ -196,6 +198,8 @@ Included patterns:
 | `/api/validate-regex` | POST | Validate regex against text |
 | `/api/scanner/run` | POST | Trigger scan |
 | `/api/scanner/status` | GET | Scan status |
+| `/api/config/ollama` | GET/PUT | Ollama AI config |
+| `/api/ollama/models` | POST | List available Ollama models |
 | `/api/thehive/status` | GET | TheHive connection |
 | `/api/thehive/cases` | GET | List cases |
 | `/api/thehive/sync` | POST | Sync pending alerts |
@@ -230,12 +234,16 @@ API at http://localhost:5001 | Frontend at http://localhost:3000
 ├── generar_datos.py                # Test data generator
 │
 ├── hawk-scanner/                   # Scan engine
-│   ├── run_hawk_scanner.py         # Main script
+│   ├── run_hawk_scanner.py         # Main script (dynamic source detection)
 │   ├── alert_manager.py            # Tracking & deduplication (SQLite)
 │   ├── severity_classifier.py      # Severity from fingerprint.yml
 │   ├── notification_manager.py     # SMTP, Slack, Teams, Webhook, TheHive
 │   ├── fingerprint.yml             # Regex patterns
 │   └── connection.yml              # Sources + notification config
+│
+├── hawk-eye-contrib/               # Custom connectors for hawk-eye
+│   ├── onedrive.py                 # OneDrive connector (Microsoft Graph API)
+│   └── install_onedrive.py         # Installs connector into hawk_scanner pkg
 │
 ├── dashboard/                      # Web dashboard
 │   ├── Dockerfile                  # Multi-stage: Next.js build + Nginx + Flask
@@ -248,6 +256,116 @@ API at http://localhost:5001 | Frontend at http://localhost:3000
 └── thehive-config/
     └── application.conf
 ```
+
+---
+
+## Cloud Storage Sources
+
+### Google Drive
+
+Poirot supports scanning Google Drive files using the `gdrive` connector (built into hawk-eye via `pydrive2`).
+
+#### Setup
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/) > APIs & Services > Credentials
+2. Create an OAuth 2.0 Client ID (Desktop application)
+3. Download the credentials JSON file
+4. Place it at a path accessible by the container (e.g., mount as a volume)
+
+#### Configuration
+
+In `hawk-scanner/connection.yml`, add under `sources:`:
+
+```yaml
+sources:
+  gdrive:
+    my_drive:
+      credentials_file: /app/credentials/gdrive_credentials.json
+      folder_name: ""          # empty = scan all, or specific folder name
+      exclude_patterns: []
+      cache: false
+```
+
+Mount the credentials file in `docker-compose.yml`:
+```yaml
+hawk-scanner:
+  volumes:
+    - ./credentials:/app/credentials:ro
+```
+
+### OneDrive (Microsoft 365)
+
+Poirot supports scanning OneDrive files via the Microsoft Graph API.
+
+#### Azure App Registration
+
+1. Go to [Azure Portal](https://portal.azure.com/) > Azure Active Directory > App Registrations > New registration
+2. Name: `poirot-scanner`, Supported account types: choose as needed
+3. Go to **API Permissions** > Add permission > Microsoft Graph > Delegated permissions > `Files.Read.All`
+4. Go to **Certificates & Secrets** > New client secret, copy the value
+5. Note the **Application (client) ID** and **Directory (tenant) ID** from the Overview page
+6. To get a refresh token, use the [OAuth 2.0 authorization code flow](https://learn.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow) or a tool like [Microsoft Graph Explorer](https://developer.microsoft.com/en-us/graph/graph-explorer)
+
+#### Configuration
+
+In `hawk-scanner/connection.yml`, add under `sources:`:
+
+```yaml
+sources:
+  onedrive:
+    my_onedrive:
+      client_id: "your-azure-app-client-id"
+      client_secret: "your-azure-app-secret"
+      tenant_id: "common"              # or your specific tenant ID
+      refresh_token: "your-refresh-token"
+      folder_path: ""                  # empty = root, or "Documents/sensitive"
+      exclude_patterns:
+        - "*.exe"
+        - "*.zip"
+      cache: false
+```
+
+---
+
+## AI-Powered Reports (Ollama)
+
+Poirot can use **Ollama** to generate professional HTML email reports with contextual security analysis. When enabled, SMTP notifications include severity cards, pattern tables, source breakdown, and an AI-written analysis paragraph. Falls back to plain text if Ollama is unavailable.
+
+### Setup
+
+You can use Ollama running on your host machine or as a Docker container.
+
+**Option A: Host Ollama (recommended)**
+
+Install [Ollama](https://ollama.com/) on your machine and pull a model:
+
+```bash
+ollama pull llama3.1
+```
+
+In the dashboard go to **Settings > AI (Ollama)**, set URL to `http://host.docker.internal:11434`, click **Load Models**, select a model, enable and save.
+
+**Option B: Docker container**
+
+```bash
+docker compose --profile ollama up -d ollama
+```
+
+This starts an Ollama container that auto-downloads `llama3.2:3b`. In Settings, set URL to `http://ollama:11434`.
+
+### How it works
+
+```
+Scan Data --> Python HTML Template (severity cards, tables, sources)
+                  |
+                  +--> Ollama (analysis paragraph only) --> Injected into template
+                  |
+              MIMEMultipart('alternative')
+                  ├── text/plain (fallback)
+                  └── text/html  (AI-enhanced)
+```
+
+The HTML template is built deterministically in Python (always correct data). Ollama only generates the contextual analysis paragraph, keeping the email reliable even with smaller models.
 
 ---
 
