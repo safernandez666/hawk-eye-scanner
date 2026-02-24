@@ -131,9 +131,9 @@ export default function DashboardPage() {
               color="blue"
             />
             <StatsCard
-              title="Críticas Pendientes"
+              title="Alertas Prioritarias"
               value={stats?.critical_pending || 0}
-              description="Requieren atención inmediata"
+              description={`${stats?.by_severity?.CRITICAL || 0} Críticas + ${stats?.by_severity?.HIGH || 0} Altas`}
               icon={ShieldAlert}
               color="red"
             />
