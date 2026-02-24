@@ -39,10 +39,14 @@ import {
   FileSpreadsheet,
   FileText,
   File,
+  TrendingUp,
+  Target,
+  Clock,
 } from "lucide-react";
 import { SeverityDonutChart } from "@/components/severity-donut-chart";
 import { TimelineChart } from "@/components/timeline-chart";
 import { SourcesBarChart } from "@/components/sources-bar-chart";
+import { DataTypesPipeline } from "@/components/data-types-pipeline";
 import { toast } from "sonner";
 
 const COLORS = {
@@ -151,26 +155,126 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* Charts Row: Donut más grande */}
-      <div className="grid gap-4 lg:grid-cols-4 items-stretch">
-        {/* Timeline - 1 columna */}
-        <div className="lg:col-span-1 h-full">
-          <TimelineChart />
-        </div>
+      {/* KPIs Avanzados - Risk Score, Remediation Rate, MTTR */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {statsLoading ? (
+          <>
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+            <Skeleton className="h-28" />
+          </>
+        ) : (
+          <>
+            <Card className="bg-gradient-to-br from-red-50 to-orange-50 border-red-200">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-red-600">Data Risk Score</p>
+                    <p className="text-3xl font-bold text-red-700 mt-1">{stats?.risk_score || 0}</p>
+                    <p className="text-xs text-red-500 mt-1">
+                      Crit×10 + High×5 + Med×2 + Low×1
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 bg-red-100 rounded-full flex items-center justify-center">
+                    <TrendingUp className="h-6 w-6 text-red-600" />
+                  </div>
+                </div>
+                {stats?.risk_score && stats.risk_score > 100 && (
+                  <div className="mt-3 text-xs bg-red-200 text-red-800 px-2 py-1 rounded">
+                    🔴 Riesgo Elevado - Accion Requerida
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-600">Remediation Rate</p>
+                    <p className="text-3xl font-bold text-green-700 mt-1">{stats?.remediation_rate || 0}%</p>
+                    <p className="text-xs text-green-500 mt-1">
+                      Hallazgos cerrados / Total
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <Target className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+                <div className="mt-3">
+                  <div className="w-full bg-green-200 rounded-full h-2">
+                    <div 
+                      className="bg-green-600 h-2 rounded-full transition-all"
+                      style={{ width: `${Math.min(stats?.remediation_rate || 0, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-gradient-to-br from-blue-50 to-cyan-50 border-blue-200">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">MTTR</p>
+                    <p className="text-3xl font-bold text-blue-700 mt-1">
+                      {stats?.mttr_hours || 0}h
+                    </p>
+                    <p className="text-xs text-blue-500 mt-1">
+                      Tiempo medio de resolucion
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+                {stats?.mttr_hours && stats.mttr_hours > 24 && (
+                  <div className="mt-3 text-xs bg-blue-200 text-blue-800 px-2 py-1 rounded">
+                    ⚠️ MTTR elevado - Revisar proceso
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </>
+        )}
+      </div>
+
+      {/* ROW 1: Alertas por Severidad + Top Tipos de Datos */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Alertas por Severidad */}
+        <SeverityDonutChart
+          data={severityData}
+          total={stats?.total_alerts || 0}
+          loading={statsLoading}
+        />
         
-        {/* Severity Donut - 2 columnas (más ancho) */}
-        <div className="lg:col-span-2 h-full">
-          <SeverityDonutChart
-            data={severityData}
-            total={stats?.total_alerts || 0}
-            loading={statsLoading}
-          />
-        </div>
+        {/* Tipos de Datos Detectados */}
+        <DataTypesPipeline 
+          data={stats?.top_patterns || []} 
+          loading={statsLoading} 
+        />
+      </div>
+
+      {/* ROW 2: Timeline + Sources + Exposure Trend */}
+      <div className="grid gap-4 lg:grid-cols-3">
+        {/* Timeline de Detecciones (30 días) */}
+        <TimelineChart />
         
-        {/* Sources Bar - 1 columna */}
-        <div className="lg:col-span-1 h-full">
-          <SourcesBarChart data={sourceData} loading={statsLoading} />
-        </div>
+        {/* Alertas por Fuente */}
+        <SourcesBarChart data={sourceData} loading={statsLoading} />
+        
+        {/* Tendencia de Exposicion */}
+        <Card className="h-full">
+          <CardHeader>
+            <CardTitle className="text-sm font-medium">Tendencia de Exposicion</CardTitle>
+          </CardHeader>
+          <CardContent className="flex items-center justify-center h-[240px] text-muted-foreground">
+            <div className="text-center">
+              <TrendingUp className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">Proximamente: Evolucion temporal</p>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Recent Alerts con filtros y exportación */}

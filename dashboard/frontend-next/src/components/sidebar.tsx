@@ -112,8 +112,8 @@ export function Sidebar({ className }: SidebarProps) {
         {/* Footer */}
         <div className="border-t p-4">
           <div className="text-xs text-muted-foreground">
-            <p>Poirot</p>
-            <p>v1.0.0</p>
+            <p className="font-medium">Poirot</p>
+            <p>by Santiago Fernandez</p>
           </div>
         </div>
       </div>

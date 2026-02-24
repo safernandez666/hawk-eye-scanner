@@ -24,6 +24,11 @@ export interface Stats {
   reopened_alerts: number;
   total_reopens: number;
   thehive_stats: Record<string, number>;
+  // KPIs avanzados
+  risk_score: number;
+  remediation_rate: number;
+  mttr_hours: number;
+  top_patterns: { name: string; count: number }[];
   timestamp: string;
 }
 
@@ -77,9 +82,14 @@ export interface OllamaConfig {
   model: string;
 }
 
-export interface SchedulerConfig {
+export interface SchedulerJob {
+  id: string;
+  name: string;
+  schedule_type: 'interval' | 'cron';
+  interval_hours?: number;
+  cron_expression?: string;
+  sources: string[];
   enabled: boolean;
-  interval_hours: number;
   next_run?: string | null;
 }
 

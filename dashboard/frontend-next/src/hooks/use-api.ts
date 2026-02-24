@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { Alert, Stats, Pattern, Source, TimelineEntry, TheHiveCase, ScannerStatus, NotificationChannel, OllamaConfig, SchedulerConfig } from "@/types";
+import type { Alert, Stats, Pattern, Source, TimelineEntry, TheHiveCase, ScannerStatus, NotificationChannel, OllamaConfig, SchedulerJob } from "@/types";
 
 const API_BASE = "/api";
 
@@ -152,14 +152,20 @@ export async function fetchOllamaModels(url: string) {
 }
 
 // Scheduler
-export function useSchedulerConfig() {
-  return useApi<SchedulerConfig>(`${API_BASE}/config/scheduler`);
+export function useSchedulerJobs() {
+  return useApi<{ jobs: SchedulerJob[] }>(`${API_BASE}/scheduler/jobs`);
 }
 
-export async function updateSchedulerConfig(config: { enabled: boolean; interval_hours: number }) {
-  return fetcher<{ message: string }>(`${API_BASE}/config/scheduler`, {
-    method: "PUT",
+export async function createSchedulerJob(job: Omit<SchedulerJob, 'id' | 'next_run'>) {
+  return fetcher<{ message: string; job: SchedulerJob }>(`${API_BASE}/scheduler/jobs`, {
+    method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(config),
+    body: JSON.stringify(job),
+  });
+}
+
+export async function deleteSchedulerJob(jobId: string) {
+  return fetcher<{ message: string }>(`${API_BASE}/scheduler/jobs/${jobId}`, {
+    method: "DELETE",
   });
 }

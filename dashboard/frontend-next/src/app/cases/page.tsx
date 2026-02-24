@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Briefcase, CheckCircle, XCircle, RefreshCw, Filter, Database, Cloud, Loader2 } from "lucide-react";
+import { Briefcase, CheckCircle, XCircle, RefreshCw, Filter, Database, Cloud, Loader2, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 import { syncTheHive } from "@/hooks/use-api";
 
@@ -162,6 +162,54 @@ export default function CasesPage() {
   }) || [];
 
   const isConnected = statusData?.status === "connected";
+  
+  // Helper para renderizar el estado de conexion
+  const renderStatusBadge = () => {
+    if (statusLoading) {
+      return <Skeleton className="h-5 w-24" />;
+    }
+    
+    const status = statusData?.status;
+    
+    switch (status) {
+      case 'connected':
+        return (
+          <Badge variant="outline" className="text-green-600 border-green-600">
+            <CheckCircle className="mr-1 h-3 w-3" />
+            Conectado
+          </Badge>
+        );
+      case 'missing_credentials':
+        return (
+          <Badge variant="outline" className="text-amber-600 border-amber-600" title={statusData?.message}>
+            <AlertCircle className="mr-1 h-3 w-3" />
+            Sin API Key
+          </Badge>
+        );
+      case 'unauthorized':
+        return (
+          <Badge variant="outline" className="text-orange-600 border-orange-600" title={statusData?.message}>
+            <XCircle className="mr-1 h-3 w-3" />
+            API Key Invalida
+          </Badge>
+        );
+      case 'unreachable':
+        return (
+          <Badge variant="outline" className="text-red-600 border-red-600" title={statusData?.message}>
+            <XCircle className="mr-1 h-3 w-3" />
+            No Responde
+          </Badge>
+        );
+      case 'error':
+      default:
+        return (
+          <Badge variant="outline" className="text-red-600 border-red-600" title={statusData?.message}>
+            <XCircle className="mr-1 h-3 w-3" />
+            Desconectado
+          </Badge>
+        );
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -178,22 +226,7 @@ export default function CasesPage() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium">Estado de The Hive:</span>
-              {statusLoading ? (
-                <Skeleton className="h-5 w-24" />
-              ) : isConnected ? (
-                <Badge
-                  variant="outline"
-                  className="text-green-600 border-green-600"
-                >
-                  <CheckCircle className="mr-1 h-3 w-3" />
-                  Conectado
-                </Badge>
-              ) : (
-                <Badge variant="outline" className="text-red-600 border-red-600">
-                  <XCircle className="mr-1 h-3 w-3" />
-                  Desconectado
-                </Badge>
-              )}
+              {renderStatusBadge()}
             </div>
           </div>
         </CardContent>

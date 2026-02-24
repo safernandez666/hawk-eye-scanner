@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useNotifications, updateNotificationChannel, testNotificationChannel, useOllamaConfig, updateOllamaConfig, fetchOllamaModels, useSchedulerConfig, updateSchedulerConfig } from "@/hooks/use-api";
-import type { NotificationChannel, OllamaConfig, SchedulerConfig } from "@/types";
+import { useNotifications, updateNotificationChannel, testNotificationChannel, useOllamaConfig, updateOllamaConfig, fetchOllamaModels, useSchedulerJobs, createSchedulerJob, deleteSchedulerJob } from "@/hooks/use-api";
+import type { SchedulerJob } from "@/types";
+import type { NotificationChannel, OllamaConfig } from "@/types";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,7 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, MessageSquare, Globe, Send, Save, Loader2, Plug, Bot, Clock } from "lucide-react";
+import { Mail, MessageSquare, Globe, Send, Save, Loader2, Plug, Bot, Clock, Bell, Cpu, Trash2, X } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // Icono personalizado de abeja para TheHive
 const BeeIcon = ({ className }: { className?: string }) => (
@@ -114,11 +116,11 @@ const INTERVAL_OPTIONS = [
 export default function SettingsPage() {
   const { data, loading, refetch } = useNotifications();
   const { data: ollamaData, loading: ollamaLoading, refetch: refetchOllama } = useOllamaConfig();
-  const { data: schedulerData, loading: schedulerLoading, refetch: refetchScheduler } = useSchedulerConfig();
+  
   const [localChannels, setLocalChannels] = useState<Record<string, NotificationChannel>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState("thehive");
+  const [activeTab, setActiveTab] = useState("integrations");
 
   // Ollama state
   const [ollamaConfig, setOllamaConfig] = useState<OllamaConfig>({ enabled: false, url: "http://ollama:11434", model: "llama3.2:3b" });
@@ -126,10 +128,19 @@ export default function SettingsPage() {
   const [loadingModels, setLoadingModels] = useState(false);
   const [savingOllama, setSavingOllama] = useState(false);
 
-  // Scheduler state
-  const [schedulerEnabled, setSchedulerEnabled] = useState(false);
-  const [schedulerInterval, setSchedulerInterval] = useState("24");
-  const [savingScheduler, setSavingScheduler] = useState(false);
+  // Scheduler state (multi-job)
+  const { data: jobsData, loading: jobsLoading, refetch: refetchJobs } = useSchedulerJobs();
+  const [showNewJobForm, setShowNewJobForm] = useState(false);
+  const [newJobName, setNewJobName] = useState("");
+  const [newJobType, setNewJobType] = useState<'interval' | 'cron'>('interval');
+  const [newJobInterval, setNewJobInterval] = useState("24");
+  const [newJobCronDay, setNewJobCronDay] = useState("1");
+  const [newJobCronHour, setNewJobCronHour] = useState("9");
+  const [newJobSources, setNewJobSources] = useState<string[]>([]);
+  const [savingJob, setSavingJob] = useState(false);
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
+  const [jobToDelete, setJobToDelete] = useState<SchedulerJob | null>(null);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     if (data?.channels) {
@@ -151,12 +162,7 @@ export default function SettingsPage() {
     }
   }, [ollamaData]);
 
-  useEffect(() => {
-    if (schedulerData) {
-      setSchedulerEnabled(schedulerData.enabled ?? false);
-      setSchedulerInterval(String(schedulerData.interval_hours ?? 24));
-    }
-  }, [schedulerData]);
+
 
   const updateField = (channel: string, field: string, value: unknown) => {
     setLocalChannels((prev) => ({
@@ -239,23 +245,63 @@ export default function SettingsPage() {
     }
   };
 
-  const handleSaveScheduler = async () => {
-    setSavingScheduler(true);
+  const handleCreateJob = async () => {
+    if (!newJobName.trim()) {
+      toast.error("El nombre es obligatorio");
+      return;
+    }
+    
+    setSavingJob(true);
     try {
-      await updateSchedulerConfig({
-        enabled: schedulerEnabled,
-        interval_hours: Number(schedulerInterval),
-      });
-      toast.success("Scheduler actualizado");
-      refetchScheduler();
+      const job: any = {
+        name: newJobName,
+        schedule_type: newJobType,
+        sources: newJobSources,
+        enabled: true,
+      };
+      
+      if (newJobType === 'interval') {
+        job.interval_hours = Number(newJobInterval);
+      } else {
+        job.cron_expression = `0 ${newJobCronHour} * * ${newJobCronDay}`;
+      }
+      
+      await createSchedulerJob(job);
+      toast.success("Tarea creada");
+      setShowNewJobForm(false);
+      setNewJobName("");
+      setNewJobSources([]);
+      refetchJobs();
     } catch (err: any) {
-      toast.error(err.message || "Error al guardar");
+      toast.error(err.message || "Error al crear tarea");
     } finally {
-      setSavingScheduler(false);
+      setSavingJob(false);
     }
   };
 
-  if (loading || ollamaLoading || schedulerLoading) {
+  const openDeleteModal = (job: SchedulerJob) => {
+    setJobToDelete(job);
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteJob = async () => {
+    if (!jobToDelete) return;
+    
+    setDeletingJobId(jobToDelete.id);
+    try {
+      await deleteSchedulerJob(jobToDelete.id);
+      toast.success("Tarea eliminada");
+      setShowDeleteModal(false);
+      setJobToDelete(null);
+      refetchJobs();
+    } catch (err: any) {
+      toast.error(err.message || "Error al eliminar");
+    } finally {
+      setDeletingJobId(null);
+    }
+  };
+
+  if (loading || ollamaLoading || jobsLoading) {
     return (
       <div className="space-y-6">
         <Skeleton className="h-12 w-full" />
@@ -268,305 +314,586 @@ export default function SettingsPage() {
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="flex flex-wrap gap-1 h-auto w-full">
-          {Object.entries(CHANNEL_META).map(([key, meta]) => (
-            <TabsTrigger key={key} value={key} className="flex items-center gap-2">
-              <meta.icon className="h-4 w-4" />
-              {meta.label}
-            </TabsTrigger>
-          ))}
-          <TabsTrigger value="ollama" className="flex items-center gap-2">
-            <Bot className="h-4 w-4" />
-            AI (Ollama)
+          <TabsTrigger value="integrations" className="flex items-center gap-2">
+            <Plug className="h-4 w-4" />
+            Integraciones
           </TabsTrigger>
-          <TabsTrigger value="scheduler" className="flex items-center gap-2">
-            <Clock className="h-4 w-4" />
-            Scheduler
+          <TabsTrigger value="notifications" className="flex items-center gap-2">
+            <Bell className="h-4 w-4" />
+            Notificaciones
+          </TabsTrigger>
+          <TabsTrigger value="automations" className="flex items-center gap-2">
+            <Cpu className="h-4 w-4" />
+            Automatizaciones
           </TabsTrigger>
         </TabsList>
 
-        {Object.entries(CHANNEL_META).map(([channelName, meta]) => {
-          const ch = localChannels[channelName] || getDefaultChannel(channelName);
-          const fields = CHANNEL_FIELDS[channelName] || [];
-
-          return (
-            <TabsContent key={channelName} value={channelName}>
-              <Card>
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <meta.icon className="h-5 w-5" />
-                      <CardTitle>{meta.label}</CardTitle>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Label htmlFor={`${channelName}-enabled`} className="text-sm">
-                        {ch.enabled ? "Habilitado" : "Deshabilitado"}
-                      </Label>
-                      <Switch
-                        id={`${channelName}-enabled`}
-                        checked={ch.enabled}
-                        onCheckedChange={(v) => updateField(channelName, "enabled", v)}
+        {/* INTEGRACIONES TAB */}
+        <TabsContent value="integrations" className="space-y-6">
+          <div className="grid gap-6">
+            {/* TheHive Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <BeeIcon className="h-5 w-5" />
+                    <CardTitle>The Hive</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="thehive-enabled" className="text-sm">
+                      {localChannels.thehive?.enabled ? "Habilitado" : "Deshabilitado"}
+                    </Label>
+                    <Switch
+                      id="thehive-enabled"
+                      checked={localChannels.thehive?.enabled ?? false}
+                      onCheckedChange={(v) => updateField("thehive", "enabled", v)}
+                    />
+                  </div>
+                </div>
+                <CardDescription>Integracion SOAR - creacion automatica de casos</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {THEHIVE_FIELDS.map((field) => (
+                    <div key={field.name} className="space-y-2">
+                      <Label htmlFor={`thehive-${field.name}`}>{field.label}</Label>
+                      <Input
+                        id={`thehive-${field.name}`}
+                        type={field.type}
+                        placeholder={field.placeholder}
+                        value={(localChannels.thehive as any)?.[field.name] ?? ""}
+                        onChange={(e) =>
+                          updateField("thehive", field.name, field.type === "number" ? Number(e.target.value) : e.target.value)
+                        }
                       />
                     </div>
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  <Label>Filtro de severidad</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {SEVERITIES.map((sev) => {
+                      const checked = localChannels.thehive?.severity_filter?.includes(sev) ?? false;
+                      return (
+                        <div key={sev} className="flex items-center gap-2">
+                          <Checkbox
+                            id={`thehive-sev-${sev}`}
+                            checked={checked}
+                            onCheckedChange={() => toggleSeverity("thehive", sev)}
+                          />
+                          <Label htmlFor={`thehive-sev-${sev}`}>
+                            <Badge variant="outline" className={sev === "CRITICAL" ? "border-red-600 text-red-600" : sev === "HIGH" ? "border-orange-500 text-orange-500" : sev === "MEDIUM" ? "border-yellow-500 text-yellow-500" : "border-green-500 text-green-500"}>
+                              {sev}
+                            </Badge>
+                          </Label>
+                        </div>
+                      );
+                    })}
                   </div>
-                  <CardDescription>{meta.description}</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  {/* Fields */}
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {fields.map((field) => (
-                      <div key={field.name} className="space-y-2">
-                        <Label htmlFor={`${channelName}-${field.name}`}>{field.label}</Label>
-                        <Input
-                          id={`${channelName}-${field.name}`}
-                          type={field.type}
-                          placeholder={field.placeholder}
-                          value={(ch as any)[field.name] ?? ""}
-                          onChange={(e) =>
-                            updateField(
-                              channelName,
-                              field.name,
-                              field.type === "number" ? Number(e.target.value) : e.target.value
-                            )
-                          }
-                        />
-                      </div>
-                    ))}
-                    {channelName === "smtp" && (
-                      <div className="flex items-center gap-2 sm:col-span-2">
-                        <Checkbox
-                          id={`${channelName}-tls`}
-                          checked={ch.use_tls ?? true}
-                          onCheckedChange={(v) => updateField(channelName, "use_tls", !!v)}
-                        />
-                        <Label htmlFor={`${channelName}-tls`}>Usar TLS</Label>
-                      </div>
-                    )}
-                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={() => handleSave("thehive")} disabled={saving === "thehive"}>
+                    {saving === "thehive" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar
+                  </Button>
+                  <Button variant="outline" onClick={() => handleTest("thehive")} disabled={testing === "thehive" || !localChannels.thehive?.enabled}>
+                    {testing === "thehive" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plug className="mr-2 h-4 w-4" />}
+                    Conectar
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-                  {/* Severity filter */}
-                  <div className="space-y-3">
-                    <Label>Filtro de severidad</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Solo se enviaran notificaciones para las severidades seleccionadas
-                    </p>
-                    <div className="flex flex-wrap gap-3">
-                      {SEVERITIES.map((sev) => {
-                        const checked = ch.severity_filter?.includes(sev) ?? false;
-                        return (
-                          <div key={sev} className="flex items-center gap-2">
-                            <Checkbox
-                              id={`${channelName}-sev-${sev}`}
-                              checked={checked}
-                              onCheckedChange={() => toggleSeverity(channelName, sev)}
-                            />
-                            <Label htmlFor={`${channelName}-sev-${sev}`}>
-                              <Badge
-                                variant="outline"
-                                className={
-                                  sev === "CRITICAL"
-                                    ? "border-red-600 text-red-600"
-                                    : sev === "HIGH"
-                                      ? "border-orange-500 text-orange-500"
-                                      : sev === "MEDIUM"
-                                        ? "border-yellow-500 text-yellow-500"
-                                        : "border-green-500 text-green-500"
-                                }
-                              >
-                                {sev}
-                              </Badge>
-                            </Label>
-                          </div>
-                        );
-                      })}
+            {/* Ollama Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Bot className="h-5 w-5" />
+                    <CardTitle>AI (Ollama)</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="ollama-enabled" className="text-sm">{ollamaConfig.enabled ? "Habilitado" : "Deshabilitado"}</Label>
+                    <Switch id="ollama-enabled" checked={ollamaConfig.enabled} onCheckedChange={(v) => setOllamaConfig((prev) => ({ ...prev, enabled: v }))} />
+                  </div>
+                </div>
+                <CardDescription>Genera emails HTML profesionales con analisis contextual usando IA</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="ollama-url">URL del servidor Ollama</Label>
+                    <div className="flex gap-2">
+                      <Input id="ollama-url" type="text" placeholder="http://ollama:11434" value={ollamaConfig.url} onChange={(e) => setOllamaConfig((prev) => ({ ...prev, url: e.target.value }))} className="flex-1" />
+                      <Button variant="outline" onClick={handleLoadModels} disabled={loadingModels}>
+                        {loadingModels ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Globe className="mr-2 h-4 w-4" />}
+                        Cargar Modelos
+                      </Button>
                     </div>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex gap-3 pt-2">
-                    <Button onClick={() => handleSave(channelName)} disabled={saving === channelName}>
-                      {saving === channelName ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Save className="mr-2 h-4 w-4" />
-                      )}
-                      Guardar
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleTest(channelName)}
-                      disabled={testing === channelName || ch.enabled !== true}
-                    >
-                      {testing === channelName ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : channelName === "thehive" ? (
-                        <Plug className="mr-2 h-4 w-4" />
-                      ) : (
-                        <Send className="mr-2 h-4 w-4" />
-                      )}
-                      {channelName === "thehive" ? "Conectar" : "Enviar Prueba"}
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
-          );
-        })}
-
-        {/* Ollama Tab */}
-        <TabsContent value="ollama">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Bot className="h-5 w-5" />
-                  <CardTitle>AI (Ollama)</CardTitle>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="ollama-enabled" className="text-sm">
-                    {ollamaConfig.enabled ? "Habilitado" : "Deshabilitado"}
-                  </Label>
-                  <Switch
-                    id="ollama-enabled"
-                    checked={ollamaConfig.enabled}
-                    onCheckedChange={(v) => setOllamaConfig((prev) => ({ ...prev, enabled: v }))}
-                  />
-                </div>
-              </div>
-              <CardDescription>
-                Genera emails HTML profesionales con analisis contextual usando Ollama (mejora las notificaciones SMTP)
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="ollama-url">URL del servidor Ollama</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="ollama-url"
-                      type="text"
-                      placeholder="http://ollama:11434"
-                      value={ollamaConfig.url}
-                      onChange={(e) => setOllamaConfig((prev) => ({ ...prev, url: e.target.value }))}
-                      className="flex-1"
-                    />
-                    <Button variant="outline" onClick={handleLoadModels} disabled={loadingModels}>
-                      {loadingModels ? (
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      ) : (
-                        <Globe className="mr-2 h-4 w-4" />
-                      )}
-                      Cargar Modelos
-                    </Button>
+                  <div className="space-y-2 sm:col-span-2">
+                    <Label htmlFor="ollama-model">Modelo</Label>
+                    {ollamaModels.length > 0 ? (
+                      <Select value={ollamaConfig.model} onValueChange={(v) => setOllamaConfig((prev) => ({ ...prev, model: v }))}>
+                        <SelectTrigger id="ollama-model"><SelectValue placeholder="Seleccionar modelo" /></SelectTrigger>
+                        <SelectContent>{ollamaModels.map((m) => (<SelectItem key={m} value={m}>{m}</SelectItem>))}</SelectContent>
+                      </Select>
+                    ) : (
+                      <Input id="ollama-model" type="text" placeholder="llama3.2:3b" value={ollamaConfig.model} onChange={(e) => setOllamaConfig((prev) => ({ ...prev, model: e.target.value }))} />
+                    )}
                   </div>
                 </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="ollama-model">Modelo</Label>
-                  {ollamaModels.length > 0 ? (
-                    <Select
-                      value={ollamaConfig.model}
-                      onValueChange={(v) => setOllamaConfig((prev) => ({ ...prev, model: v }))}
-                    >
-                      <SelectTrigger id="ollama-model">
-                        <SelectValue placeholder="Seleccionar modelo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ollamaModels.map((m) => (
-                          <SelectItem key={m} value={m}>{m}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <Input
-                      id="ollama-model"
-                      type="text"
-                      placeholder="llama3.2:3b"
-                      value={ollamaConfig.model}
-                      onChange={(e) => setOllamaConfig((prev) => ({ ...prev, model: e.target.value }))}
-                    />
-                  )}
-                  <p className="text-sm text-muted-foreground">
-                    Haz clic en &quot;Cargar Modelos&quot; para listar los modelos disponibles en el servidor
-                  </p>
+                <div className="flex gap-3">
+                  <Button onClick={handleSaveOllama} disabled={savingOllama}>
+                    {savingOllama ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar
+                  </Button>
                 </div>
-              </div>
-              <div className="flex gap-3 pt-2">
-                <Button onClick={handleSaveOllama} disabled={savingOllama}>
-                  {savingOllama ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Guardar
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
-        {/* Scheduler Tab */}
-        <TabsContent value="scheduler">
+        {/* NOTIFICACIONES TAB */}
+        <TabsContent value="notifications" className="space-y-6">
+          <div className="grid gap-6">
+            {/* SMTP Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    <CardTitle>SMTP (Email)</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="smtp-enabled" className="text-sm">{localChannels.smtp?.enabled ? "Habilitado" : "Deshabilitado"}</Label>
+                    <Switch id="smtp-enabled" checked={localChannels.smtp?.enabled ?? false} onCheckedChange={(v) => updateField("smtp", "enabled", v)} />
+                  </div>
+                </div>
+                <CardDescription>Enviar reportes por correo electronico</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {SMTP_FIELDS.map((field) => (
+                    <div key={field.name} className="space-y-2">
+                      <Label htmlFor={`smtp-${field.name}`}>{field.label}</Label>
+                      <Input id={`smtp-${field.name}`} type={field.type} placeholder={field.placeholder} value={(localChannels.smtp as any)?.[field.name] ?? ""} onChange={(e) => updateField("smtp", field.name, field.type === "number" ? Number(e.target.value) : e.target.value)} />
+                    </div>
+                  ))}
+                  <div className="flex items-center gap-2 sm:col-span-2">
+                    <Checkbox id="smtp-tls" checked={localChannels.smtp?.use_tls ?? true} onCheckedChange={(v) => updateField("smtp", "use_tls", !!v)} />
+                    <Label htmlFor="smtp-tls">Usar TLS</Label>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <Label>Filtro de severidad</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {SEVERITIES.map((sev) => {
+                      const checked = localChannels.smtp?.severity_filter?.includes(sev) ?? false;
+                      return (
+                        <div key={sev} className="flex items-center gap-2">
+                          <Checkbox id={`smtp-sev-${sev}`} checked={checked} onCheckedChange={() => toggleSeverity("smtp", sev)} />
+                          <Label htmlFor={`smtp-sev-${sev}`}>
+                            <Badge variant="outline" className={sev === "CRITICAL" ? "border-red-600 text-red-600" : sev === "HIGH" ? "border-orange-500 text-orange-500" : sev === "MEDIUM" ? "border-yellow-500 text-yellow-500" : "border-green-500 text-green-500"}>{sev}</Badge>
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={() => handleSave("smtp")} disabled={saving === "smtp"}>
+                    {saving === "smtp" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar
+                  </Button>
+                  <Button variant="outline" onClick={() => handleTest("smtp")} disabled={testing === "smtp" || !localChannels.smtp?.enabled}>
+                    {testing === "smtp" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Enviar Prueba
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Slack Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <CardTitle>Slack</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="slack-enabled" className="text-sm">{localChannels.slack?.enabled ? "Habilitado" : "Deshabilitado"}</Label>
+                    <Switch id="slack-enabled" checked={localChannels.slack?.enabled ?? false} onCheckedChange={(v) => updateField("slack", "enabled", v)} />
+                  </div>
+                </div>
+                <CardDescription>Notificaciones via Slack webhook</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="slack-webhook_url">Webhook URL</Label>
+                  <Input id="slack-webhook_url" type="text" placeholder="https://hooks.slack.com/services/..." value={(localChannels.slack as any)?.webhook_url ?? ""} onChange={(e) => updateField("slack", "webhook_url", e.target.value)} />
+                </div>
+                <div className="space-y-3">
+                  <Label>Filtro de severidad</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {SEVERITIES.map((sev) => {
+                      const checked = localChannels.slack?.severity_filter?.includes(sev) ?? false;
+                      return (
+                        <div key={sev} className="flex items-center gap-2">
+                          <Checkbox id={`slack-sev-${sev}`} checked={checked} onCheckedChange={() => toggleSeverity("slack", sev)} />
+                          <Label htmlFor={`slack-sev-${sev}`}>
+                            <Badge variant="outline" className={sev === "CRITICAL" ? "border-red-600 text-red-600" : sev === "HIGH" ? "border-orange-500 text-orange-500" : sev === "MEDIUM" ? "border-yellow-500 text-yellow-500" : "border-green-500 text-green-500"}>{sev}</Badge>
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={() => handleSave("slack")} disabled={saving === "slack"}>
+                    {saving === "slack" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar
+                  </Button>
+                  <Button variant="outline" onClick={() => handleTest("slack")} disabled={testing === "slack" || !localChannels.slack?.enabled}>
+                    {testing === "slack" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Enviar Prueba
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Teams Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    <CardTitle>Microsoft Teams</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="teams-enabled" className="text-sm">{localChannels.teams?.enabled ? "Habilitado" : "Deshabilitado"}</Label>
+                    <Switch id="teams-enabled" checked={localChannels.teams?.enabled ?? false} onCheckedChange={(v) => updateField("teams", "enabled", v)} />
+                  </div>
+                </div>
+                <CardDescription>Notificaciones via Microsoft Teams webhook</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="teams-webhook_url">Webhook URL</Label>
+                  <Input id="teams-webhook_url" type="text" placeholder="https://outlook.office.com/webhook/..." value={(localChannels.teams as any)?.webhook_url ?? ""} onChange={(e) => updateField("teams", "webhook_url", e.target.value)} />
+                </div>
+                <div className="space-y-3">
+                  <Label>Filtro de severidad</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {SEVERITIES.map((sev) => {
+                      const checked = localChannels.teams?.severity_filter?.includes(sev) ?? false;
+                      return (
+                        <div key={sev} className="flex items-center gap-2">
+                          <Checkbox id={`teams-sev-${sev}`} checked={checked} onCheckedChange={() => toggleSeverity("teams", sev)} />
+                          <Label htmlFor={`teams-sev-${sev}`}>
+                            <Badge variant="outline" className={sev === "CRITICAL" ? "border-red-600 text-red-600" : sev === "HIGH" ? "border-orange-500 text-orange-500" : sev === "MEDIUM" ? "border-yellow-500 text-yellow-500" : "border-green-500 text-green-500"}>{sev}</Badge>
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={() => handleSave("teams")} disabled={saving === "teams"}>
+                    {saving === "teams" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar
+                  </Button>
+                  <Button variant="outline" onClick={() => handleTest("teams")} disabled={testing === "teams" || !localChannels.teams?.enabled}>
+                    {testing === "teams" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Enviar Prueba
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Webhook Card */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" />
+                    <CardTitle>Webhook</CardTitle>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Label htmlFor="webhook-enabled" className="text-sm">{localChannels.webhook?.enabled ? "Habilitado" : "Deshabilitado"}</Label>
+                    <Switch id="webhook-enabled" checked={localChannels.webhook?.enabled ?? false} onCheckedChange={(v) => updateField("webhook", "enabled", v)} />
+                  </div>
+                </div>
+                <CardDescription>POST/PUT generico a cualquier URL</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {WEBHOOK_FIELDS.map((field) => (
+                    <div key={field.name} className="space-y-2">
+                      <Label htmlFor={`webhook-${field.name}`}>{field.label}</Label>
+                      <Input id={`webhook-${field.name}`} type={field.type} placeholder={field.placeholder} value={(localChannels.webhook as any)?.[field.name] ?? ""} onChange={(e) => updateField("webhook", field.name, field.type === "number" ? Number(e.target.value) : e.target.value)} />
+                    </div>
+                  ))}
+                </div>
+                <div className="space-y-3">
+                  <Label>Filtro de severidad</Label>
+                  <div className="flex flex-wrap gap-3">
+                    {SEVERITIES.map((sev) => {
+                      const checked = localChannels.webhook?.severity_filter?.includes(sev) ?? false;
+                      return (
+                        <div key={sev} className="flex items-center gap-2">
+                          <Checkbox id={`webhook-sev-${sev}`} checked={checked} onCheckedChange={() => toggleSeverity("webhook", sev)} />
+                          <Label htmlFor={`webhook-sev-${sev}`}>
+                            <Badge variant="outline" className={sev === "CRITICAL" ? "border-red-600 text-red-600" : sev === "HIGH" ? "border-orange-500 text-orange-500" : sev === "MEDIUM" ? "border-yellow-500 text-yellow-500" : "border-green-500 text-green-500"}>{sev}</Badge>
+                          </Label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <div className="flex gap-3">
+                  <Button onClick={() => handleSave("webhook")} disabled={saving === "webhook"}>
+                    {saving === "webhook" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                    Guardar
+                  </Button>
+                  <Button variant="outline" onClick={() => handleTest("webhook")} disabled={testing === "webhook" || !localChannels.webhook?.enabled}>
+                    {testing === "webhook" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                    Enviar Prueba
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        {/* AUTOMATIZACIONES TAB - Multi-Job Scheduler */}
+        <TabsContent value="automations" className="space-y-6">
+          {/* Lista de tareas existentes */}
+          {jobsData?.jobs && jobsData.jobs.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Tareas Programadas</h3>
+              {jobsData.jobs.map((job) => (
+                <Card key={job.id}>
+                  <CardContent className="p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Clock className="h-4 w-4 text-muted-foreground" />
+                          <span className="font-medium">{job.name}</span>
+                          {job.schedule_type === 'interval' ? (
+                            <Badge variant="outline">⏱️ Cada {job.interval_hours}h</Badge>
+                          ) : (
+                            <Badge variant="outline">📅 {job.cron_expression}</Badge>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span>Fuentes: {job.sources.length > 0 ? job.sources.join(', ') : 'Todas'}</span>
+                          {job.next_run && (
+                            <>
+                              <span>•</span>
+                              <span>Proximo: {new Date(job.next_run).toLocaleString()}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => openDeleteModal(job)}
+                        disabled={deletingJobId === job.id}
+                      >
+                        {deletingJobId === job.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Formulario para nueva tarea */}
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Clock className="h-5 w-5" />
-                  <CardTitle>Scheduler</CardTitle>
+                  <CardTitle>Nueva Tarea Programada</CardTitle>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Label htmlFor="scheduler-enabled" className="text-sm">
-                    {schedulerEnabled ? "Habilitado" : "Deshabilitado"}
-                  </Label>
-                  <Switch
-                    id="scheduler-enabled"
-                    checked={schedulerEnabled}
-                    onCheckedChange={setSchedulerEnabled}
-                  />
-                </div>
-              </div>
-              <CardDescription>
-                Configura escaneos automaticos a intervalos regulares
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-2">
-                <Label htmlFor="scheduler-interval">Frecuencia de escaneo</Label>
-                <Select value={schedulerInterval} onValueChange={setSchedulerInterval}>
-                  <SelectTrigger id="scheduler-interval">
-                    <SelectValue placeholder="Seleccionar intervalo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {INTERVAL_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {schedulerData?.next_run && schedulerEnabled && (
-                <div className="rounded-md border p-3 text-sm">
-                  <span className="text-muted-foreground">Proximo escaneo: </span>
-                  <span className="font-medium">{new Date(schedulerData.next_run).toLocaleString()}</span>
-                </div>
-              )}
-
-              {!schedulerEnabled && (
-                <p className="text-sm text-muted-foreground">
-                  Habilita el scheduler para ejecutar escaneos automaticamente
-                </p>
-              )}
-
-              <div className="flex gap-3 pt-2">
-                <Button onClick={handleSaveScheduler} disabled={savingScheduler}>
-                  {savingScheduler ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Save className="mr-2 h-4 w-4" />
-                  )}
-                  Guardar
+                <Button variant="outline" onClick={() => setShowNewJobForm(!showNewJobForm)}>
+                  {showNewJobForm ? 'Cancelar' : 'Agregar Tarea'}
                 </Button>
               </div>
-            </CardContent>
+              <CardDescription>
+                Programa escaneos automaticos para ejecutarse periodicamente
+              </CardDescription>
+            </CardHeader>
+            {showNewJobForm && (
+              <CardContent className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="job-name">Nombre de la tarea</Label>
+                  <Input
+                    id="job-name"
+                    placeholder="Ej: Escaneo MySQL diario"
+                    value={newJobName}
+                    onChange={(e) => setNewJobName(e.target.value)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Tipo de programacion</Label>
+                  <Select value={newJobType} onValueChange={(v) => setNewJobType(v as 'interval' | 'cron')}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Seleccionar tipo" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="interval">⏱️ Intervalo regular</SelectItem>
+                      <SelectItem value="cron">📅 Horario especifico</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Seleccion de fuentes */}
+                <div className="space-y-3">
+                  <Label>Fuentes a escanear</Label>
+                  <div className="flex flex-wrap gap-4">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="newjob-mysql"
+                        checked={newJobSources.includes('mysql')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setNewJobSources([...newJobSources, 'mysql']);
+                          } else {
+                            setNewJobSources(newJobSources.filter(s => s !== 'mysql'));
+                          }
+                        }}
+                      />
+                      <Label htmlFor="newjob-mysql" className="cursor-pointer">🗄️ MySQL</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="newjob-s3"
+                        checked={newJobSources.includes('s3')}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setNewJobSources([...newJobSources, 's3']);
+                          } else {
+                            setNewJobSources(newJobSources.filter(s => s !== 's3'));
+                          }
+                        }}
+                      />
+                      <Label htmlFor="newjob-s3" className="cursor-pointer">☁️ Amazon S3</Label>
+                    </div>
+                  </div>
+                  {newJobSources.length === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Si no seleccionas ninguna fuente, se escanearan todas.
+                    </p>
+                  )}
+                </div>
+
+                {newJobType === 'interval' ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="newjob-interval">Frecuencia de escaneo</Label>
+                    <Select value={newJobInterval} onValueChange={setNewJobInterval}>
+                      <SelectTrigger id="newjob-interval">
+                        <SelectValue placeholder="Seleccionar intervalo" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {INTERVAL_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Dia de la semana</Label>
+                      <Select value={newJobCronDay} onValueChange={setNewJobCronDay}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar dia" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="0">Domingo</SelectItem>
+                          <SelectItem value="1">Lunes</SelectItem>
+                          <SelectItem value="2">Martes</SelectItem>
+                          <SelectItem value="3">Miercoles</SelectItem>
+                          <SelectItem value="4">Jueves</SelectItem>
+                          <SelectItem value="5">Viernes</SelectItem>
+                          <SelectItem value="6">Sabado</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Hora (24h)</Label>
+                      <Select value={newJobCronHour} onValueChange={setNewJobCronHour}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Seleccionar hora" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({length: 24}, (_, i) => (
+                            <SelectItem key={i} value={String(i)}>{String(i).padStart(2, '0')}:00</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-2">
+                  <Button onClick={handleCreateJob} disabled={savingJob}>
+                    {savingJob ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Save className="mr-2 h-4 w-4" />
+                    )}
+                    Crear Tarea
+                  </Button>
+                </div>
+              </CardContent>
+            )}
           </Card>
+
+          {!jobsData?.jobs?.length && !showNewJobForm && (
+            <div className="text-center py-8 text-muted-foreground">
+              <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>No hay tareas programadas</p>
+              <p className="text-sm">Haz clic en &quot;Agregar Tarea&quot; para crear una</p>
+            </div>
+          )}
+
+          {/* Modal de confirmacion para eliminar */}
+          <Dialog open={showDeleteModal} onOpenChange={setShowDeleteModal}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Confirmar eliminacion</DialogTitle>
+                <DialogDescription>
+                  ¿Estas seguro de que deseas eliminar la tarea &quot;{jobToDelete?.name}&quot;?
+                  <br /><br />
+                  Esta accion no se puede deshacer.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter className="flex gap-3">
+                <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+                  Cancelar
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteJob} disabled={deletingJobId !== null}>
+                  {deletingJobId ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="mr-2 h-4 w-4" />
+                  )}
+                  Eliminar
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
       </Tabs>
     </div>

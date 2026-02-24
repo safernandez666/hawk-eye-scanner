@@ -16,11 +16,11 @@ notify:
       host: smtp.hostinger.com
       port: 587
       use_tls: true
-      username: your-email@example.com
-      password: YOUR_EMAIL_PASSWORD
-      from_address: your-email@example.com
+      username: sfernandez@ironbox.com.ar
+      password: Jupiter34*%??
+      from_address: sfernandez@ironbox.com.ar
       from_name: Poirot Security
-      to_addresses: recipient@example.com
+      to_addresses: sfernandez@ironbox.com.ar
     slack:
       enabled: true
       severity_filter:
@@ -28,7 +28,7 @@ notify:
       - HIGH
       - MEDIUM
       - LOW
-      webhook_url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+      webhook_url: ${SLACK_WEBHOOK_URL}
     teams:
       enabled: false
       webhook_url: ''
@@ -48,16 +48,20 @@ notify:
       - MEDIUM
       - LOW
     thehive:
-      enabled: false
+      enabled: true
       severity_filter:
       - CRITICAL
       - HIGH
       url: http://thehive:9000
-      api_key: YOUR_THEHIVE_API_KEY
+      api_key: FEdjJZ0rxWGZoXsIPOAdVmuOivmgo3h9
       create_cases: true
 scheduler:
-  enabled: false
-  interval_hours: 24
+  enabled: true
+  schedule_type: interval
+  sources:
+  - mysql
+  - s3
+  interval_hours: 12.0
 sources:
   mysql:
     poc_mysql:
@@ -72,3 +76,4 @@ sources:
       secret_key: test
       bucket_name: poc-bucket
       endpoint_url: http://localstack:4566
+scheduler_jobs: []
