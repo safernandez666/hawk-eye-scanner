@@ -184,8 +184,13 @@ export default function SettingsPage() {
   const handleSave = async (channel: string) => {
     setSaving(channel);
     try {
-      await updateNotificationChannel(channel, localChannels[channel]);
+      const result = await updateNotificationChannel(channel, localChannels[channel]);
       toast.success(`Canal "${CHANNEL_META[channel].label}" guardado`);
+      if (result?.restart_required) {
+        toast.message("Reinicio requerido", {
+          description: "Reinicia los contenedores para aplicar los cambios (dashboard y hawk-scanner).",
+        });
+      }
       refetch();
     } catch (err: any) {
       toast.error(err.message || "Error al guardar");
@@ -235,8 +240,13 @@ export default function SettingsPage() {
   const handleSaveOllama = async () => {
     setSavingOllama(true);
     try {
-      await updateOllamaConfig(ollamaConfig);
+      const result = await updateOllamaConfig(ollamaConfig);
       toast.success("Configuracion de Ollama guardada");
+      if (result?.restart_required) {
+        toast.message("Reinicio requerido", {
+          description: "Reinicia los contenedores para aplicar los cambios (dashboard y hawk-scanner).",
+        });
+      }
       refetchOllama();
     } catch (err: any) {
       toast.error(err.message || "Error al guardar");

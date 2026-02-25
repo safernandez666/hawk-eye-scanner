@@ -115,7 +115,7 @@ export function useNotifications() {
 }
 
 export async function updateNotificationChannel(channel: string, config: NotificationChannel) {
-  return fetcher<{ message: string }>(`${API_BASE}/config/notifications/${channel}`, {
+  return fetcher<{ message: string; restart_required?: boolean }>(`${API_BASE}/config/notifications/${channel}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
@@ -136,7 +136,7 @@ export function useOllamaConfig() {
 }
 
 export async function updateOllamaConfig(config: OllamaConfig) {
-  return fetcher<{ message: string }>(`${API_BASE}/config/ollama`, {
+  return fetcher<{ message: string; restart_required?: boolean }>(`${API_BASE}/config/ollama`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(config),
