@@ -225,6 +225,63 @@ Enable AI-generated analysis and recommendations in email and chat notifications
 
 ---
 
+## Reset & Fresh Install
+
+To completely reset the environment and start fresh:
+
+```bash
+# 1. Stop and remove all containers, volumes, and networks
+docker compose down -v --remove-orphans
+
+# 2. Clean local data (optional)
+rm -rf hawk-scanner/data/alerts.db
+rm -rf hawk-scanner/data/*.json
+rm -rf localstack_data/*
+
+# 3. Or use the reset script (keeps Docker volumes, cleans DB and TheHive)
+./scripts/reset.sh --all
+```
+
+### Fresh Install Steps
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/safernandez666/poirot.git
+cd poirot
+
+# 2. Configure environment (optional - defaults work out of the box)
+cp .env.example .env
+# Edit .env with your settings (Slack webhook, SMTP, TheHive, etc.)
+
+# 3. Start services
+docker compose up -d
+# Or with TheHive: docker compose --profile thehive up -d
+
+# 4. Generate test data
+pip3 install pymysql boto3
+python3 data/generar_datos.py
+
+# 5. Access the dashboard
+echo "Dashboard: http://localhost:8080"
+```
+
+### Configuration Flow
+
+Settings are stored in **`.env`** (single source of truth):
+
+| Component | Reads From | Notes |
+|---|---|---|
+| Docker Compose | `.env` | At startup |
+| Dashboard API | `.env` | Via python-dotenv |
+| Scanner | `.env` | Environment variables |
+| `connection.yml` | Placeholders `${VAR}` | Never contains real secrets |
+
+**After changing settings in the UI:**
+1. Changes are saved to `.env` immediately
+2. **Restart containers** to apply: `docker compose restart`
+
+---
+
 ## Dashboard
 
 The dashboard has 7 sections:
@@ -321,7 +378,9 @@ API at http://localhost:5001 | Frontend at http://localhost:3000
 .
 ├── docker-compose.yml              # Orchestration
 ├── Dockerfile                      # Scanner image
-├── generar_datos.py                # Test data generator
+│
+├── data/                           # Test data & sample files
+│   └── generar_datos.py            # PCI/PII test data generator
 │
 ├── hawk-scanner/                   # Scan engine
 │   ├── run_hawk_scanner.py         # Main script (dynamic source detection)
@@ -340,7 +399,8 @@ API at http://localhost:5001 | Frontend at http://localhost:3000
 │   └── frontend-next/              # Next.js + shadcn/ui
 │       └── src/app/                # Pages: dashboard, alerts, patterns, etc.
 │
-├── scripts/reset.sh                # Cleans alerts DB and TheHive cases
+├── scripts/
+│   └── reset.sh                    # Cleans alerts DB and TheHive cases
 └── thehive-config/
     └── application.conf
 ```
