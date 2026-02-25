@@ -13,6 +13,7 @@ export interface Alert {
   thehive_status?: string;
   reopen_count: number;
   notes?: string;
+  resolution_status?: 'TRUE_POSITIVE' | 'FALSE_POSITIVE';
 }
 
 export interface Stats {

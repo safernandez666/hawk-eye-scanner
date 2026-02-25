@@ -50,3 +50,28 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     </Badge>
   );
 }
+
+interface ResolutionBadgeProps {
+  status?: string;
+  size?: "sm" | "default";
+}
+
+export function ResolutionBadge({ status, size = "default" }: ResolutionBadgeProps) {
+  const colorClass: Record<string, string> = {
+    TRUE_POSITIVE: "bg-red-100 text-red-700 border-red-200",
+    FALSE_POSITIVE: "bg-green-100 text-green-700 border-green-200",
+  };
+  
+  if (!status) {
+    return <Badge variant="outline" className="text-xs px-1.5 py-0">N/A</Badge>;
+  }
+  
+  return (
+    <Badge 
+      variant="outline" 
+      className={`${colorClass[status] || ""} ${size === "sm" ? "text-xs px-1.5 py-0" : ""}`}
+    >
+      {status.replace(/_/g, " ")}
+    </Badge>
+  );
+}

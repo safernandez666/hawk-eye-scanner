@@ -18,7 +18,11 @@ from datetime import datetime
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from apscheduler.schedulers.background import BackgroundScheduler
+from dotenv import load_dotenv, set_key
 import os
+
+# Load .env file if it exists
+load_dotenv('/app/.env', override=False)
 
 app = Flask(__name__)
 CORS(app)
@@ -32,9 +36,69 @@ DB_PATH = os.environ.get('ALERTS_DB_PATH', '/app/data/alerts.db')
 # Paths a archivos de configuración
 FINGERPRINT_PATH = os.environ.get('FINGERPRINT_PATH', '/app/config/fingerprint.yml')
 CONNECTION_PATH = os.environ.get('CONNECTION_PATH', '/app/config/connection.yml')
+ENV_PATH = '/app/.env'
 
 # TheHive config
 _THEHIVE_ENABLED_ENV = os.environ.get('THEHIVE_ENABLED', '').lower()
+
+
+# ==========================================
+# ENV FILE HELPERS (Single source of truth)
+# ==========================================
+
+def _env_get(key, default=None):
+    """Get value from environment (loaded from .env)"""
+    return os.environ.get(key, default)
+
+
+def _env_set(key, value):
+    """Set value in .env file and update current environment"""
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(ENV_PATH), exist_ok=True)
+        
+        # Convert value to string
+        str_value = str(value) if value is not None else ''
+        
+        # Write to .env file
+        set_key(ENV_PATH, key, str_value, quote_mode='always')
+        
+        # Update current process environment
+        os.environ[key] = str_value
+        
+        return True
+    except Exception as e:
+        print(f"[env] Error setting {key}: {e}")
+        return False
+
+
+def _env_get_bool(key, default=False):
+    """Get boolean value from environment"""
+    val = _env_get(key, '').lower()
+    if val == 'true':
+        return True
+    if val == 'false':
+        return False
+    return default
+
+
+def _env_set_bool(key, value):
+    """Set boolean value in .env"""
+    return _env_set(key, 'true' if value else 'false')
+
+
+def _parse_severity_filter(val):
+    """Parse comma-separated severity filter"""
+    if not val:
+        return ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+    return [s.strip() for s in val.split(',') if s.strip()]
+
+
+def _format_severity_filter(severity_list):
+    """Format severity list to comma-separated string"""
+    if not severity_list:
+        return 'CRITICAL,HIGH,MEDIUM,LOW'
+    return ','.join(severity_list)
 
 
 def _is_thehive_enabled():
@@ -1105,62 +1169,166 @@ def sources_health():
 
 
 # ==========================================
-# NOTIFICATION CONFIG ENDPOINTS
+# NOTIFICATION CONFIG ENDPOINTS (.env based)
 # ==========================================
+
+# Mapping of channel fields to env vars
+NOTIFICATION_ENV_MAP = {
+    'slack': {
+        'enabled': 'SLACK_ENABLED',
+        'webhook_url': 'SLACK_WEBHOOK_URL',
+        'severity_filter': 'SLACK_SEVERITY_FILTER',
+    },
+    'smtp': {
+        'enabled': 'SMTP_ENABLED',
+        'host': 'SMTP_HOST',
+        'port': 'SMTP_PORT',
+        'username': 'SMTP_USERNAME',
+        'password': 'SMTP_PASSWORD',
+        'use_tls': 'SMTP_USE_TLS',
+        'from_address': 'SMTP_FROM_ADDRESS',
+        'from_name': 'SMTP_FROM_NAME',
+        'to_addresses': 'SMTP_TO_ADDRESSES',
+        'severity_filter': 'SMTP_SEVERITY_FILTER',
+    },
+    'teams': {
+        'enabled': 'TEAMS_ENABLED',
+        'webhook_url': 'TEAMS_WEBHOOK_URL',
+        'severity_filter': 'TEAMS_SEVERITY_FILTER',
+    },
+    'thehive': {
+        'enabled': 'THEHIVE_ENABLED',
+        'url': 'THEHIVE_URL',
+        'api_key': 'THEHIVE_API_KEY',
+        'user': 'THEHIVE_USER',
+        'password': 'THEHIVE_PASSWORD',
+        'severity_filter': 'THEHIVE_SEVERITY_FILTER',
+        'create_cases': 'THEHIVE_CREATE_CASES',
+    },
+    'webhook': {
+        'enabled': 'WEBHOOK_ENABLED',
+        'url': 'WEBHOOK_URL',
+        'method': 'WEBHOOK_METHOD',
+        'headers': 'WEBHOOK_HEADERS',
+        'severity_filter': 'WEBHOOK_SEVERITY_FILTER',
+    },
+}
+
+
+def _get_channel_config_from_env(channel):
+    """Build channel config dict from environment variables"""
+    mapping = NOTIFICATION_ENV_MAP.get(channel, {})
+    if not mapping:
+        return {}
+    
+    config = {}
+    for field, env_key in mapping.items():
+        val = _env_get(env_key)
+        
+        if field == 'enabled':
+            config[field] = val.lower() == 'true' if val else False
+        elif field == 'severity_filter':
+            config[field] = _parse_severity_filter(val)
+        elif field == 'port':
+            config[field] = int(val) if val and val.isdigit() else 587
+        elif field == 'use_tls':
+            config[field] = val.lower() == 'true' if val else True
+        elif field == 'to_addresses':
+            # Comma-separated list
+            config[field] = [e.strip() for e in val.split(',')] if val else []
+        elif field == 'headers':
+            # Try to parse as JSON, fallback to string
+            try:
+                config[field] = json.loads(val) if val else {}
+            except:
+                config[field] = {}
+        else:
+            config[field] = val or ''
+    
+    return config
+
+
+def _set_channel_config_to_env(channel, data):
+    """Save channel config to environment variables"""
+    mapping = NOTIFICATION_ENV_MAP.get(channel, {})
+    if not mapping:
+        return False
+    
+    success = True
+    for field, env_key in mapping.items():
+        if field not in data:
+            continue
+            
+        val = data[field]
+        
+        if field == 'enabled':
+            success = _env_set_bool(env_key, val) and success
+        elif field == 'severity_filter':
+            success = _env_set(env_key, _format_severity_filter(val)) and success
+        elif field == 'to_addresses':
+            # List to comma-separated
+            success = _env_set(env_key, ','.join(val) if isinstance(val, list) else str(val)) and success
+        elif field == 'headers':
+            # Dict to JSON
+            success = _env_set(env_key, json.dumps(val) if isinstance(val, dict) else str(val)) and success
+        else:
+            success = _env_set(env_key, str(val)) and success
+    
+    return success
+
 
 @app.route('/api/config/notifications', methods=['GET'])
 def get_notifications_config():
-    """Lista canales de notificacion configurados en connection.yml"""
+    """List notification channels configuration from .env"""
     try:
-        config = read_yaml(CONNECTION_PATH)
-        channels = config.get('notify', {}).get('channels', {})
+        channels = {}
+        for channel in NOTIFICATION_ENV_MAP.keys():
+            config = _get_channel_config_from_env(channel)
+            if config:
+                channels[channel] = config
         return jsonify({'channels': channels})
-    except FileNotFoundError:
-        return jsonify({'channels': {}})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/config/notifications/<channel>', methods=['PUT'])
 def update_notification_channel(channel):
-    """Actualiza la configuracion de un canal de notificacion"""
+    """Update notification channel configuration in .env"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Body JSON requerido'}), 400
 
-        valid_channels = ['thehive', 'smtp', 'slack', 'teams', 'webhook']
-        if channel not in valid_channels:
-            return jsonify({'error': f'Canal invalido. Validos: {valid_channels}'}), 400
+        if channel not in NOTIFICATION_ENV_MAP:
+            valid = list(NOTIFICATION_ENV_MAP.keys())
+            return jsonify({'error': f'Canal invalido. Validos: {valid}'}), 400
 
-        config = read_yaml(CONNECTION_PATH)
-        if 'notify' not in config:
-            config['notify'] = {}
-        if 'channels' not in config['notify']:
-            config['notify']['channels'] = {}
-
-        config['notify']['channels'][channel] = data
-        write_yaml(CONNECTION_PATH, config)
-        return jsonify({'message': f'Canal "{channel}" actualizado'})
+        if _set_channel_config_to_env(channel, data):
+            return jsonify({
+                'message': f'Canal "{channel}" actualizado en .env',
+                'note': 'Reinicia los contenedores para aplicar cambios completos'
+            })
+        else:
+            return jsonify({'error': 'Error guardando en .env'}), 500
+            
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/config/notifications/<channel>/test', methods=['POST'])
 def test_notification_channel(channel):
-    """Envia una notificacion de prueba por el canal indicado (async para SMTP+Ollama)"""
+    """Send test notification using current .env config"""
     try:
-        valid_channels = ['thehive', 'smtp', 'slack', 'teams', 'webhook']
-        if channel not in valid_channels:
-            return jsonify({'error': f'Canal invalido. Validos: {valid_channels}'}), 400
+        if channel not in NOTIFICATION_ENV_MAP:
+            valid = list(NOTIFICATION_ENV_MAP.keys())
+            return jsonify({'error': f'Canal invalido. Validos: {valid}'}), 400
 
-        # Leer config actual o usar body del request
+        # Use body config or read from .env
         data = request.get_json()
         if data:
             channel_config = data
         else:
-            config = read_yaml(CONNECTION_PATH)
-            channel_config = config.get('notify', {}).get('channels', {}).get(channel, {})
+            channel_config = _get_channel_config_from_env(channel)
 
         if not channel_config:
             return jsonify({'error': f'Canal "{channel}" no configurado'}), 404
@@ -1168,7 +1336,7 @@ def test_notification_channel(channel):
         from notification_manager import NotificationManager
         nm = NotificationManager(config_path=None)
 
-        # Run in background thread so the UI doesn't block
+        # Run in background thread
         def _send():
             try:
                 result = nm.send_test(channel, channel_config)
@@ -1184,8 +1352,17 @@ def test_notification_channel(channel):
 
 
 # ==========================================
-# OLLAMA CONFIG ENDPOINTS
+# OLLAMA CONFIG ENDPOINTS (.env based)
 # ==========================================
+
+# Ollama env var mapping
+OLLAMA_ENV_MAP = {
+    'enabled': 'OLLAMA_ENABLED',
+    'url': 'OLLAMA_URL',
+    'model': 'OLLAMA_MODEL',
+    'severity_filter': 'OLLAMA_SEVERITY_FILTER',
+}
+
 
 @app.route('/api/ollama/models', methods=['POST'])
 def get_ollama_models():
@@ -1203,31 +1380,64 @@ def get_ollama_models():
 
 @app.route('/api/config/ollama', methods=['GET'])
 def get_ollama_config():
-    """Read Ollama config from connection.yml"""
+    """Read Ollama config from .env"""
     try:
-        config = read_yaml(CONNECTION_PATH)
-        ollama = config.get('notify', {}).get('ollama', {})
-        return jsonify(ollama)
-    except FileNotFoundError:
-        return jsonify({})
+        config = {}
+        for field, env_key in OLLAMA_ENV_MAP.items():
+            val = _env_get(env_key)
+            if field == 'enabled':
+                config[field] = val.lower() == 'true' if val else False
+            elif field == 'severity_filter':
+                config[field] = _parse_severity_filter(val)
+            else:
+                config[field] = val or ''
+        return jsonify(config)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/config/ollama', methods=['PUT'])
 def update_ollama_config():
-    """Update Ollama config in connection.yml"""
+    """Update Ollama config in .env"""
     try:
         data = request.get_json()
         if not data:
             return jsonify({'error': 'Body JSON requerido'}), 400
 
+        success = True
+        for field, env_key in OLLAMA_ENV_MAP.items():
+            if field not in data:
+                continue
+            val = data[field]
+            if field == 'enabled':
+                success = _env_set_bool(env_key, val) and success
+            elif field == 'severity_filter':
+                success = _env_set(env_key, _format_severity_filter(val)) and success
+            else:
+                success = _env_set(env_key, str(val)) and success
+        
+        if success:
+            return jsonify({
+                'message': 'Ollama config updated in .env',
+                'note': 'Reinicia los contenedores para aplicar cambios completos'
+            })
+        else:
+            return jsonify({'error': 'Error guardando en .env'}), 500
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+# ==========================================
+# LEGACY CONNECTION.YML ENDPOINTS (Read-only fallback)
+# ==========================================
+
+@app.route('/api/config/connection', methods=['GET'])
+def get_connection_config():
+    """Read raw connection.yml (for debugging)"""
+    try:
         config = read_yaml(CONNECTION_PATH)
-        if 'notify' not in config:
-            config['notify'] = {}
-        config['notify']['ollama'] = data
-        write_yaml(CONNECTION_PATH, config)
-        return jsonify({'message': 'Ollama config updated'})
+        return jsonify(config)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

@@ -328,12 +328,10 @@ API at http://localhost:5001 | Frontend at http://localhost:3000
 │   ├── alert_manager.py            # Tracking & deduplication (SQLite)
 │   ├── severity_classifier.py      # Severity from fingerprint.yml
 │   ├── notification_manager.py     # SMTP, Slack, Teams, Webhook, TheHive
+│   ├── onedrive.py                 # OneDrive connector (Microsoft Graph API)
+│   ├── install_onedrive.py         # OneDrive connector installer
 │   ├── fingerprint.yml             # Regex patterns
 │   └── connection.yml              # Sources + notification config
-│
-├── hawk-eye-contrib/               # Custom connectors for hawk-eye
-│   ├── onedrive.py                 # OneDrive connector (Microsoft Graph API)
-│   └── install_onedrive.py         # Installs connector into hawk_scanner pkg
 │
 ├── dashboard/                      # Web dashboard
 │   ├── Dockerfile                  # Multi-stage: Next.js build + Nginx + Flask
@@ -342,7 +340,7 @@ API at http://localhost:5001 | Frontend at http://localhost:3000
 │   └── frontend-next/              # Next.js + shadcn/ui
 │       └── src/app/                # Pages: dashboard, alerts, patterns, etc.
 │
-├── reset.sh                        # Cleans alerts DB and TheHive cases
+├── scripts/reset.sh                # Cleans alerts DB and TheHive cases
 └── thehive-config/
     └── application.conf
 ```
