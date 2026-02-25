@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Copiar package files e instalar dependencias
 COPY frontend-next/package*.json ./
-RUN npm ci
+RUN npm install
 
 # Copiar source y buildear como export estatico
 COPY frontend-next/ ./
