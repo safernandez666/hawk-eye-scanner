@@ -48,13 +48,13 @@ notify:
       - MEDIUM
       - LOW
     thehive:
-      enabled: true
+      enabled: ${THEHIVE_ENABLED:-true}
       severity_filter:
       - CRITICAL
       - HIGH
-      url: http://thehive:9000
-      api_key: FEdjJZ0rxWGZoXsIPOAdVmuOivmgo3h9
-      create_cases: true
+      url: ${THEHIVE_URL:-http://thehive:9000}
+      api_key: ${THEHIVE_API_KEY:-}
+      create_cases: ${THEHIVE_CREATE_CASES:-true}
 scheduler:
   enabled: true
   schedule_type: interval
